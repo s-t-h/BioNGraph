@@ -6,14 +6,17 @@ from tkinter.filedialog import askopenfilename, asksaveasfilename
 from PIL import ImageTk, Image
 from modules.container.Tags import DATA_SEPARATOR, DISPLAY_SEPARATOR, MERGE_SEPARATOR, VERTEX, EDGE
 from webbrowser import open_new
+from zipfile import ZipFile
 
 
 def load_icon(iconname, width=24, height=24):
 
+    icons = ZipFile('resources/icons.zip', 'r')
+
     return \
         ImageTk.PhotoImage(
             Image.open(
-                '/resources/icons/' + iconname + '.png'
+                icons.open(iconname + '.png')
             ).resize((width, height), Image.ANTIALIAS)
         )
 

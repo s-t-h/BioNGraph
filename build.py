@@ -1,8 +1,4 @@
-from pybuilder.core import use_plugin, init, task
-from urllib import request
-from tarfile import open
-from os.path import realpath
-from subprocess import Popen, PIPE
+from pybuilder.core import use_plugin, init
 
 use_plugin("python.core")
 use_plugin("python.install_dependencies")
@@ -28,7 +24,7 @@ def set_properties(project):
         "icons.zip": "target/dist/BioNGraph/resources"
     })
 
-
+'''
 @task("redis", description="Downloads and sets up Redis-Server/Redis-Graph-Module")
 def set_up_redis():
 
@@ -37,4 +33,15 @@ def set_up_redis():
     tar.extractall()
     tar.close()
 
-    Popen(['make'], stdout=PIPE, cwd='redis-stable')
+    request.urlretrieve("https://github.com/RedisLabsModules/RedisGraph.git", filename="redis-graph.zip")
+    zip = ZipFile('redis-graph.zip', 'r')
+    zip.extractall('redis-graph')
+    zip.close()
+
+    remove("redis.tar.gz")
+    remove("redis-graph.zip")
+    #tar = open("redis.tar.gz")
+    #tar.extractall()
+    #tar.close()
+    #remove("redis.tar.gz")
+'''

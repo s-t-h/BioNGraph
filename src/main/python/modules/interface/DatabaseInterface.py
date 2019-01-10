@@ -88,9 +88,6 @@ class DatabaseInterface:
         self.__Client.execute_command('GRAPH.DELETE ' + dbkey)
 
     def db_merge(self, selection, sourcegraph, targetgraph, targetin=False):
-        self.__Client.execute_command('GRAPH.QUERY', sourcegraph, 'CREATE INDEX ON :vertex(id)')
-        self.__Client.execute_command('GRAPH.QUERY', sourcegraph, 'CREATE INDEX ON :edge(target)')
-        self.__Client.execute_command('GRAPH.QUERY', sourcegraph, 'CREATE INDEX ON :edge(source)')
 
         ### COLLECT ALL OBJECTS ###
         merge_attribute = selection[0]
@@ -182,6 +179,9 @@ class DatabaseInterface:
     def db_write(self, graph, dbkey):
 
         self.__query(graph_to_cypher(graph), dbkey, post=True)
+
+        map(lambda target: self.__Client.execute_command('GRAPH.QUERY', dbkey, 'CREATE INDEX ON ' + target),
+            [':vertex(id)', ':edge(target)', 'edge(source)'])
 
     def db_annotate(self, dictionary, dbkey):
 

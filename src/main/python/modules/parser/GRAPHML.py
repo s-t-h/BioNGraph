@@ -1,5 +1,5 @@
 from xml.sax import make_parser, handler
-from modules.container.Graph import Graph
+from igraph import Graph
 from modules.container.Tags import EDGE, DATA_SEPARATOR, KEY, NODE, ID, SOURCE, TARGET, DATA
 
 
@@ -108,12 +108,12 @@ class _Handler(handler.ContentHandler):
 
         if name == NODE:
             properties = self.PROPERTIES.copy()
-            self.RESPONSE.add_vertex(properties)
+            self.RESPONSE.add_vertex(name=properties[ID], **properties)
             self.PROPERTIES.clear()
 
         elif name == EDGE:
             properties = self.PROPERTIES.copy()
-            self.RESPONSE.add_edge(properties)
+            self.RESPONSE.add_edge(source=properties[SOURCE], target=properties[TARGET], **properties)
             self.PROPERTIES.clear()
 
         elif name == DATA:

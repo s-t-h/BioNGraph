@@ -4,7 +4,7 @@ from modules.constructor.Cypher import get_vertex_limited, get_edge_limited, gra
 
 import redis
 
-from modules.container.Graph import Graph
+from igraph import Graph
 from modules.container.Tags import MERGE_SEPARATOR, SOURCE, TARGET, ID
 
 

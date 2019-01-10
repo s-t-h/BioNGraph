@@ -1,5 +1,6 @@
 from os.path import basename
 from modules.container.File import File
+from igraph import plot
 
 
 class FileInterface:
@@ -61,27 +62,62 @@ class FileInterface:
 
             return self.__Parser[file_type].get_response()
 
-    def write_file(self, path, query):
+    def write_file(self, path, graph):
 
         file_type, file_name = self.__file_info(path)
 
+        try:
+
+            file = open(path)
+
+        except FileNotFoundError:
+
+            file = open(path, 'w+')
+
         if file_type == 'graphml':
 
-            try:
-                file = open(path)
-
-            except FileNotFoundError:
-                file = open(path, 'w+')
-
-            query.save_as_graphml(file)
+            graph.write_graphml(f=file)
 
             file.close()
 
         elif file_type == 'png':
 
-            query.save_as_png(path)
+            def set_visual_style():
+
+                vertex_color_map = {}
+                edge_color_map = {}
+
+                for property_count, color_map in [(len(graph.vertex_attributes()), vertex_color_map),
+                                                  (len(graph.edge_attributes()), edge_color_map)]:
+
+                    rgb_fraction = round(255 / max(1, property_count))
+
+                    for count in range(property_count + 1):
+                        color_map[count] = ', '.join([str(min(255, 0 + rgb_fraction * count)),
+                                                      str(200),
+                                                      str(max(0, 255 - rgb_fraction * count))])
+
+                visual_style = {
+                    'vertex_color': [
+                        vertex_color_map[len([attribute for attribute in vertex.attributes().values() if attribute])]
+                        for vertex in graph.vs],
+                    'edge_color': [
+                        edge_color_map[len([attribute for attribute in edge.attributes().values() if attribute])] for
+                        edge in graph.es]
+                }
+
+                return visual_style
+
+            plot(graph, file, **set_visual_style())
+
+            graph.save_as_png(path)
+
+            file.close()
 
         else:
+
+            file.close()
+
             raise Exception('No writer for the choosen file type found.')
 
     @staticmethod

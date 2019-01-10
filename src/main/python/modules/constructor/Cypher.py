@@ -115,7 +115,9 @@ def get_edge_limited():
 
 def graph_to_cypher(graph):
 
-    return CREATE + create_vertex(*graph.Vertices) + create_edge(*graph.Edges)
+    return CREATE \
+           + create_vertex(*[vertex.attributes() for vertex in graph.vs]) \
+           + create_edge(*[edge.attributes() for edge in graph.es])
 
 
 def annotation_dict_to_cypher(dict):

@@ -1,6 +1,6 @@
 import csv
 
-from modules.container.Graph import Graph
+from igraph import Graph
 from modules.container.Tags import DATA_SEPARATOR
 
 
@@ -117,8 +117,8 @@ class CSVParser:
                 edge['target'] = target['id']
                 edge['source'] = source['id']
 
-                self.__Response.add_vertex(source)
-                self.__Response.add_vertex(target)
-                self.__Response.add_edge(edge)
+                self.__Response.add_vertex(name=edge['source'], **source)
+                self.__Response.add_vertex(name=edge['target'], **target)
+                self.__Response.add_edge(source=edge['source'], target=edge['target'], **edge)
 
             print(self.__Response)

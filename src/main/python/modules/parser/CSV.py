@@ -1,7 +1,7 @@
 import csv
 
 from modules.container.Graph import Graph
-from modules.container.Tags import DATA_SEPARATOR
+from modules.container.Tags import DATA_SEPARATOR, TARGET, SOURCE, ID
 
 
 class CSVParser:
@@ -99,7 +99,7 @@ class CSVParser:
 
                 return False
 
-            self.__Response = Graph()
+            self.__Response = {'vertices': [], 'edges': []}
 
             csv_reader = csv.DictReader(file)
 
@@ -114,11 +114,11 @@ class CSVParser:
                 except TypeError:
                     continue
 
-                edge['target'] = target['id']
-                edge['source'] = source['id']
+                edge[TARGET] = target[ID]
+                edge[SOURCE] = source[ID]
 
-                self.__Response.add_vertex(source)
-                self.__Response.add_vertex(target)
-                self.__Response.add_edge(edge)
+                self.__Response['vertices'].append(source)
+                self.__Response['vertices'].append(target)
+                self.__Response['edges'].append(edge)
 
             print(self.__Response)

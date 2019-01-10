@@ -84,7 +84,7 @@ class _Handler(handler.ContentHandler):
     # Methods for parse mode
 
     def start_document_parse(self):
-        self.RESPONSE = Graph()
+        self.RESPONSE = {'vertices': [], 'edges': []}
 
     def start_element_parse(self, name, attrs):
 
@@ -108,12 +108,12 @@ class _Handler(handler.ContentHandler):
 
         if name == NODE:
             properties = self.PROPERTIES.copy()
-            self.RESPONSE.add_vertex(properties)
+            self.RESPONSE['vertices'].append(properties)
             self.PROPERTIES.clear()
 
         elif name == EDGE:
             properties = self.PROPERTIES.copy()
-            self.RESPONSE.add_edge(properties)
+            self.RESPONSE['edges'].append(properties)
             self.PROPERTIES.clear()
 
         elif name == DATA:

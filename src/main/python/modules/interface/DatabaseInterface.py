@@ -118,7 +118,7 @@ class DatabaseInterface:
 
         edges = self.__response_to_dict(self.__query(get_edge(*iid_joint), sourcegraph))['edge']
 
-        graph = Graph()
+        graph = {'vertices': [], 'edges': []}
         
         for vertex in vertices:
 
@@ -159,7 +159,7 @@ class DatabaseInterface:
                 merged_vertex[attribute] = 'NULL'
             merged_vertex[merge_attribute] = merge_attribute_value
 
-            graph.add_vertex(merged_vertex)
+            graph['vertices'].append(merged_vertex)
 
             for edge_key in iid_buckets[iid]['edge']:
 
@@ -167,7 +167,7 @@ class DatabaseInterface:
 
                 merged_edge[TARGET] = set(merged_edge[TARGET].split(MERGE_SEPARATOR)).pop()
                 merged_edge[SOURCE] = set(merged_edge[SOURCE].split(MERGE_SEPARATOR)).pop()
-                graph.add_edge(merged_edge)
+                graph['edges'].append(merged_edge)
 
         if sourcegraph == targetgraph:
             self.__query(delete_vertex(*iid_joint), sourcegraph)

@@ -1,5 +1,4 @@
 from xml.sax import make_parser, handler
-from modules.container.Graph import Graph
 from modules.container.Tags import EDGE, DATA_SEPARATOR, KEY, NODE, ID, SOURCE, TARGET, DATA
 
 

@@ -1,6 +1,5 @@
 import csv
 
-from modules.container.Graph import Graph
 from modules.container.Tags import DATA_SEPARATOR, TARGET, SOURCE, ID
 
 

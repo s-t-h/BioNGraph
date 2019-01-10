@@ -4,7 +4,7 @@ from tkinter import messagebox, simpledialog
 from tkinter.ttk import *
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from PIL import ImageTk, Image
-from modules.container.Tags import DATA_SEPARATOR, DISPLAY_SEPARATOR, MERGE_SEPARATOR, VERTEX, EDGE
+from modules.container.Tags import DATA_SEPARATOR, DISPLAY_SEPARATOR, MERGE_SEPARATOR, VERTEX, EDGE, ID, TARGET, SOURCE
 from webbrowser import open_new
 from zipfile import ZipFile
 
@@ -562,66 +562,41 @@ class ExportPane:
 
         if self.DBContainer.DBStatus['query'] == 'active':
 
-            self.DBContainer.DBStatus['query'] = ' '
-
-            vertex_keys = self.DBContainer.DBQuery[0]
-            edge_keys = self.DBContainer.DBQuery[1]
-
-            vertices = self.DBContainer.DBQuery[2].Vertices
-            edges = self.DBContainer.DBQuery[2].Edges
-
-            for table, columns, entries in [(self.vertex_table, vertex_keys, vertices),
-                                            (self.edge_table, edge_keys, edges)]:
+            def assemble_headings(table, headings):
 
                 table['show'] = 'headings'
                 table.delete(*table.get_children())
-                table.config(columns=columns)
 
-                for name in columns:
+                table.config(columns=headings)
 
-                    table.heading(name, text=name)
+                for heading in headings:
+
+                    table.heading(heading, text=heading)
+
+            self.DBContainer.DBStatus['query'] = ' '
+
+            graph = self.DBContainer.DBQuery
+
+            del graph.vs['name']
+
+            for table, properties, entries in [(self.vertex_table, graph.vertex_attributes(), graph.vs),
+                                               (self.edge_table, graph.edge_attributes(), graph.es)]:
+
+                assemble_headings(table, properties)
 
                 for entry in entries:
 
-                    values = [DISPLAY_SEPARATOR.join(
-                        [attribute for attribute in entry[key].split(MERGE_SEPARATOR) if attribute != 'NULL'])
-                        for key in columns]
+                    values = list(entry.attributes().values())
 
-                    try:
+                    if ID not in entry.attributes():
 
-                        if 'id' in entry:
+                        iid = entry.attributes()['src'] + entry.attributes()['tgt']
 
-                            iid = values[columns.index('id')]
-                            table.insert('', 'end', iid=iid, values=values, tags=['entry'])
+                    else:
 
-                        elif 'source' in entry and 'target' in entry:
+                        iid = entry.attributes()[ID]
 
-                            count = max([value.count(DISPLAY_SEPARATOR) for value in values])
-
-                            index = 0
-
-                            if count > 0:
-
-                                values = [value.split(', ') if value.count(DISPLAY_SEPARATOR) > 0
-                                          else [value] * (count + 1)
-                                          for value in values]
-
-                                values = list(map(list, zip(*values)))
-
-                                for value in values:
-                                    table.insert('', 'end', iid=index, values=value, tags=['entry'])
-
-                                    index += 1
-
-                            else:
-
-                                table.insert('', 'end', iid=index, values=values, tags=['entry'])
-
-                                index += 1
-
-                    except TclError:
-
-                        pass
+                    table.insert('', 'end', iid=iid, values=values, tags=['entry'])
 
     def __rename_key(self, new_name, old_name):
 

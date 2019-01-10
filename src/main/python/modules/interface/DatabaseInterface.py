@@ -4,8 +4,8 @@ from modules.constructor.Cypher import get_vertex_limited, get_edge_limited, gra
 
 import redis
 
-from modules.container.Graph import Graph
-from modules.container.Tags import MERGE_SEPARATOR, SOURCE, TARGET, ID
+from igraph import Graph
+from modules.container.Tags import MERGE_SEPARATOR, SOURCE, TARGET, ID, DATA_SEPARATOR, DISPLAY_SEPARATOR
 
 
 class DatabaseInterface:
@@ -249,37 +249,75 @@ class DatabaseInterface:
 
     def __response_to_graph(self, response):
 
-        graph = Graph()
-        vertex_keys = set()
-        edge_keys = set()
+        def compress_entry(entry_):
 
+            new_entry = {}
+
+            for key in entry_.keys():
+
+                new_key = '_'.join([key.lstrip('e_').lstrip('v_') for key in key.split(DATA_SEPARATOR)])
+                new_value = set(entry_[key].split(MERGE_SEPARATOR))
+                new_value.discard('NULL')
+                new_value = DISPLAY_SEPARATOR.join(new_value)
+
+                new_entry[new_key] = new_value
+
+            return new_entry
+
+        def drop_null_keys(keys, sequence):
+
+            for key in keys:
+
+                if all([entry[key] == 'NULL' for entry in sequence]):
+                    del sequence[key]
+
+        graph = Graph()
+        vertices = []
+        edges = []
         mapping = self.__response_to_dict(response)
 
         for entity in mapping:
 
             for entry in mapping[entity]:
 
+                entry = compress_entry(entry)
+
                 if ID in entry:
-                    graph.add_vertex(entry)
-                    vertex_keys = vertex_keys.union(entry.keys())
+                    vertices.append(entry)
 
                 if SOURCE in entry and TARGET in entry:
-                    graph.add_edge(entry)
-                    edge_keys = edge_keys.union(entry.keys())
+                    edges.append(entry)
 
-        def drop_null_keys(keys, objects):
-            null_keys = []
-            for key in keys:
-                null_key = all(map(lambda obj: bool(obj[key] == 'NULL'), objects))
-                if null_key:
-                    null_keys.append(key)
-                    for obj in objects:
-                        del obj[key]
-            for key in null_keys:
-                keys.discard(key)
+        vertex_identifier = set()
+        for vertex in vertices:
 
-        for keys, objects in [(vertex_keys, graph.Vertices), (edge_keys, graph.Edges)]:
-            drop_null_keys(keys, objects)
+            iid = vertex[ID]
 
-        return list(vertex_keys), list(edge_keys), graph
+            if iid not in vertex_identifier:
 
+                graph.add_vertex(name=iid, **vertex)
+
+                vertex_identifier.add(iid)
+
+        edge_identifier = set()
+        for edge in edges:
+
+            source = edge.pop(SOURCE)
+            target = edge.pop(TARGET)
+
+            iid = source + target
+
+            if iid not in edge_identifier:
+
+                edge['src'] = source
+                edge['tgt'] = target
+
+                graph.add_edge(source=source, target=target, **edge)
+
+                edge_identifier.add(iid)
+
+        for keys_, sequence_ in [(graph.vertex_attributes(), graph.vs), (graph.edge_attributes(), graph.es)]:
+
+            drop_null_keys(keys_, sequence_)
+
+        return graph

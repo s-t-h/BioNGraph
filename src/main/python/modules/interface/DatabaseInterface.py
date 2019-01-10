@@ -1,4 +1,5 @@
 from functools import reduce
+from tkinter import messagebox
 from modules.constructor.Cypher import get_vertex_limited, get_edge_limited, graph_to_cypher, \
     annotation_dict_to_cypher, get_vertex_equal, get_vertex, get_edge, delete_vertex
 
@@ -37,18 +38,19 @@ class DatabaseInterface:
         except AttributeError:
             return False
 
-    def __query(self, command, dbkey, post=False):
+    def __query(self, command, dbkey, report=False):
 
         if self.client_get_connection():
 
             response = self.__Client.execute_command('GRAPH.QUERY', dbkey, command)
 
-            '''
-            if self.Log and post:
-                self.Log.config(state=NORMAL)
-                self.Log.insert(END, '> ' + str(response[1]) + '\n')
-                self.Log.config(state=DISABLED)
-            '''
+            if report:
+
+                messagebox.showinfo(title='Redis',
+                                    message='Executed database query:' +
+                                            '\n'.join([content.decode('UTF-8') for content in response[1]])
+                                    )
+
 
             return response[0]
 
@@ -178,14 +180,14 @@ class DatabaseInterface:
 
     def db_write(self, graph, dbkey):
 
-        self.__query(graph_to_cypher(graph), dbkey, post=True)
+        self.__query(graph_to_cypher(graph), dbkey, report=True)
 
         map(lambda target: self.__Client.execute_command('GRAPH.QUERY', dbkey, 'CREATE INDEX ON ' + target),
             [':vertex(id)', ':edge(target)', 'edge(source)'])
 
     def db_annotate(self, dictionary, dbkey):
 
-        self.__query(annotation_dict_to_cypher(dictionary), dbkey, post=True)
+        self.__query(annotation_dict_to_cypher(dictionary), dbkey, report=True)
 
     @staticmethod
     def __unify_sets(sets):

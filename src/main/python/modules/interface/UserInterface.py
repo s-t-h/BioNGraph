@@ -3,7 +3,7 @@ from time import sleep
 from threading import Thread
 from queue import Queue, Empty
 from os.path import realpath
-from modules.widget.Widgets import load_icon
+from modules.widget.Widgets import _load_icon
 
 
 class GUIMain:
@@ -24,10 +24,10 @@ class GUIMain:
         self.Master.add_view_menu_option(self.ClientMenu, label='Client Menu', image=self.ClientMenu.main_icon)
         self.Master.add_view_menu_option(self.DatabaseMenu, label='Database Menu', image=self.DatabaseMenu.main_icon)
 
-        self.repository_icon = load_icon('Repository', width=15, height=15)
+        self.repository_icon = _load_icon('Repository', width=15, height=15)
         self.repository_url = 'https://github.com/s-t-h/BioNGraph'
         self.Master.add_help_menu_option_url(self.repository_url, label='GitHub', image=self.repository_icon)
-        self.userguide_icon = load_icon('Help', width=15, height=15)
+        self.userguide_icon = _load_icon('Help', width=15, height=15)
         self.userguide_url = 'file://' + realpath('../../resources/guide/UserGuide.html')
         self.Master.add_help_menu_option_url(self.userguide_url, label='User Guide', image=self.userguide_icon)
 

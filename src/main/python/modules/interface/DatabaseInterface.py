@@ -47,10 +47,9 @@ class DatabaseInterface:
             if report:
 
                 messagebox.showinfo(title='Redis',
-                                    message='Executed database query:' +
+                                    message='Executed database query: \n' +
                                             '\n'.join([content.decode('UTF-8') for content in response[1]])
                                     )
-
 
             return response[0]
 
@@ -174,9 +173,15 @@ class DatabaseInterface:
         else:
             self.db_write(graph, targetgraph)
 
-    def db_query(self, query, dbkey):
+    def db_query(self, query, dbkey, to_graph=False):
 
-        return (self.__response_to_graph(self.__query(query, dbkey)))
+        if to_graph:
+
+            return self.__response_to_graph(self.__query(query, dbkey))
+
+        else:
+
+            self.__query(query, dbkey)
 
     def db_write(self, graph, dbkey):
 
@@ -270,7 +275,7 @@ class DatabaseInterface:
 
             for key in keys:
 
-                if all([entry[key] == 'NULL' for entry in sequence]):
+                if all([entry.attributes()[key] == '' for entry in sequence]):
                     del sequence[key]
 
         graph = Graph()

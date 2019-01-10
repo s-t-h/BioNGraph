@@ -99,25 +99,38 @@ class CSVParser:
                 return False
 
             self.__Response = {'vertices': [], 'edges': []}
-
+            identifiers = set()
             csv_reader = csv.DictReader(file)
+
 
             for entry in csv_reader:
 
                 entry = list(entry.items())
 
                 try:
+
                     source = collect_vertex(entry)
                     target = collect_vertex(entry)
                     edge = collect_edge(entry)
+
                 except TypeError:
+
                     continue
 
-                edge[TARGET] = target[ID]
                 edge[SOURCE] = source[ID]
+                edge[TARGET] = target[ID]
 
-                self.__Response['vertices'].append(source)
-                self.__Response['vertices'].append(target)
-                self.__Response['edges'].append(edge)
+                if source[ID] not in identifiers:
 
-            print(self.__Response)
+                    self.__Response['vertices'].append(source)
+                    identifiers.add(source[ID])
+
+                if target[ID] not in identifiers:
+
+                    self.__Response['vertices'].append(target)
+                    identifiers.add(target[ID])
+
+                if edge[SOURCE] + edge[TARGET] not in identifiers:
+
+                    self.__Response['edges'].append(edge)
+                    identifiers.add(edge[SOURCE] + edge[TARGET])

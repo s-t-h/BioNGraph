@@ -9,7 +9,7 @@ from webbrowser import open_new
 from zipfile import ZipFile
 
 
-def load_icon(iconname, width=24, height=24):
+def _load_icon(iconname, width=24, height=24):
 
     icons = ZipFile('resources/icons.zip', 'r')
 
@@ -113,20 +113,20 @@ class ClientMenu:
         self.ThreadManager = threadmanager
 
         self.main = Frame(parent, style='Menu.TFrame')
-        self.connect_btn_icon = load_icon('ServerConnect')
-        self.disconnect_btn_icon = load_icon('ServerDisconnect')
+        self.connect_btn_icon = _load_icon('ServerConnect')
+        self.disconnect_btn_icon = _load_icon('ServerDisconnect')
         self.connect_btn = Button(self.main, image=self.connect_btn_icon, command=self.__connect)
         self.port_frame = Labelframe(self.main, text='Port ', labelanchor='w')
         self.host_frame = Labelframe(self.main, text='Host ', labelanchor='w')
         self.port_entry = Entry(self.port_frame, width=25, justify='center')
         self.host_entry = Entry(self.host_frame, width=25, justify='center')
-        self.status_connected_icon = load_icon('Connected')
-        self.status_disconnected_icon = load_icon('Disconnected')
+        self.status_connected_icon = _load_icon('Connected')
+        self.status_disconnected_icon = _load_icon('Disconnected')
         self.status_indicator = Label(self.main, image=self.status_connected_icon)
-        self.thread_indicator_icons = [load_icon('Thread' + str(index)) for index in range(1, 9)]
+        self.thread_indicator_icons = [_load_icon('Thread' + str(index)) for index in range(1, 9)]
         self.thread_indicator = Label(self.main, image=None)
         self.thread_indicator_index = 0
-        self.main_icon = load_icon('Server', width=15, height=15)
+        self.main_icon = _load_icon('Server', width=15, height=15)
 
     def display_state(self, state):
         """
@@ -232,13 +232,13 @@ class DatabaseMenu:
         self.DBInterface = dbinterface
 
         self.main = Frame(parent, style='Menu.TFrame')
-        self.delete_btn_icon = load_icon('DataBaseDelete')
+        self.delete_btn_icon = _load_icon('DataBaseDelete')
         self.delete_btn = Button(self.main, image=self.delete_btn_icon, command=self.__delete_key)
-        self.save_button_icon = load_icon('DataBaseBackup')
+        self.save_button_icon = _load_icon('DataBaseBackup')
         self.save_button = Button(self.main, image=self.save_button_icon, command=self.__save_db)
         self.key_frame = Labelframe(self.main, text='Graph ', labelanchor='w')
         self.key_entry = Combobox(self.key_frame, width=23, justify='center')
-        self.main_icon = load_icon('DataBase', width=15, height=15)
+        self.main_icon = _load_icon('DataBase', width=15, height=15)
 
         self.key_entry.bind('<<ComboboxSelected>>', self.__set_key)
         self.key_entry.bind('<Return>', self.__add_key)
@@ -303,9 +303,13 @@ class DatabaseMenu:
         :return:
         """
 
-        self.DBInterface.db_delete_key(self.DBContainer.DBActiveKey)
-        self.DBContainer.__delete_key()
-        self.key_entry.delete(0, END)
+        if messagebox.askokcancel(title='Delete Key' + self.DBContainer.DBActiveKey,
+                                  message='Delete' + self.DBContainer.DBActiveKey
+                                          + '. This action cannot be reverted.'):
+
+            self.DBInterface.db_delete_key(self.DBContainer.DBActiveKey)
+            self.DBContainer.delete_key()
+            self.key_entry.delete(0, END)
 
     def __set_key(self, event):
         """
@@ -357,9 +361,9 @@ class ImportPane:
         self.main = Frame()
         parent.add(self.main)
         self.menu_frame = Frame(self.main, style='Menu.TFrame')
-        self.open_button_icon = load_icon('Import')
+        self.open_button_icon = _load_icon('Import')
         self.open_button = Button(self.menu_frame, image=self.open_button_icon, command=self.open)
-        self.upload_button_icon = load_icon('Upload')
+        self.upload_button_icon = _load_icon('Upload')
         self.upload_button = Button(self.menu_frame, image=self.upload_button_icon, command=self.upload)
         self.import_table = _construct_table(self.main, 'Import', 'Import.Treeview')
 
@@ -494,7 +498,7 @@ class ExportPane:
         self.main = Frame()
         parent.add(self.main)
         self.menu_frame = Frame(self.main, style='Menu.TFrame')
-        self.export_button_icon = load_icon('Export')
+        self.export_button_icon = _load_icon('Export')
         self.export_button = Button(self.menu_frame, image=self.export_button_icon, command=self.__export)
         self.vertex_table = _construct_table(self.main, 'Vertex', 'Treeview')
         self.edge_table = _construct_table(self.main, 'Vertex', 'Treeview')
@@ -549,7 +553,7 @@ class ExportPane:
 
             self.ThreadManager.stack_task(
                 'Export',
-                self.FileInterface.write_file, path, self.DBContainer.DBQuery[2]
+                self.FileInterface.write_file, path, self.DBContainer.DBQuery
             )
 
     def __display_query_response(self):
@@ -575,7 +579,15 @@ class ExportPane:
 
             graph = self.DBContainer.DBQuery
 
-            del graph.vs['name']
+            table_index = 0
+
+            try:
+
+                del graph.vs['name']
+
+            except KeyError:
+
+                pass
 
             for table, properties, entries in [(self.vertex_table, graph.vertex_attributes(), graph.vs),
                                                (self.edge_table, graph.edge_attributes(), graph.es)]:
@@ -586,15 +598,9 @@ class ExportPane:
 
                     values = list(entry.attributes().values())
 
-                    if ID not in entry.attributes():
+                    table.insert('', 'end', iid=table_index, values=values, tags=['entry'])
 
-                        iid = entry.attributes()['src'] + entry.attributes()['tgt']
-
-                    else:
-
-                        iid = entry.attributes()[ID]
-
-                    table.insert('', 'end', iid=iid, values=values, tags=['entry'])
+                    table_index += 1
 
     def __rename_key(self, new_name, old_name):
 
@@ -671,17 +677,17 @@ class EditPane:
         self.main = Frame()
         parent.add(self.main)
         self.menu_frame = Frame(self.main, style='Menu.TFrame')
-        self.merge_button_icon = load_icon('GraphMerge')
+        self.merge_button_icon = _load_icon('GraphMerge')
         self.merge_button = Button(self.menu_frame, image=self.merge_button_icon,
                                    command=lambda: self.MergeToplevel._pack(
                                        [entry for entry in self.property_table.selection()
                                         if self.property_table.item(entry)['values'][0] != 'merge'
                                         and self.property_table.item(entry)['values'][1] != 'edge']
                                    ))
-        self.query_button_icon = load_icon('DataBaseQuery')
+        self.query_button_icon = _load_icon('DataBaseQuery')
         self.query_button = Button(self.menu_frame, image=self.query_button_icon,
                                    command=self.QueryToplevel._pack)
-        self.annotate_button_icon = load_icon('DataBaseAnnotate')
+        self.annotate_button_icon = _load_icon('DataBaseAnnotate')
         self.annotate_button = Button(self.menu_frame, image=self.annotate_button_icon,
                                       command=lambda: self.AnnotateToplevel._pack(
                                           [entry for entry in self.property_table.get_children()
@@ -807,7 +813,7 @@ class QueryToplevel:
         self.frame = Frame(self.main)
         self.menu_frame = Frame(self.frame, style='Menu.TFrame')
         self.query_text = Text(self.frame, background='snow4', foreground='snow')
-        self.run_button_icon = load_icon('Run')
+        self.run_button_icon = _load_icon('Run')
         self.run_button = Button(self.menu_frame, image=self.run_button_icon, command=self.__run_query)
 
     def _pack(self, px=5, py=5):
@@ -825,10 +831,15 @@ class QueryToplevel:
 
     def __run_query(self):
 
-        query = self.query_text.get('1.0', END).replace('\n', ' ').replace('\t', ' ')
+        query = self.query_text.get('1.0', END).replace('\n', ' ').replace('\t', ' ').lower()
 
-        self.ThreadManager.stack_task('Query',
-                                      self.DBContainer.request_query_response, query)
+        if 'return' in query:
+
+            self.ThreadManager.stack_task('Query', self.DBContainer.request_query_response, query)
+
+        else:
+
+            self.ThreadManager.stack_task('Query', self.DBInterface.db_query, query, self.DBContainer.DBActiveKey)
 
 
 class AnnotateToplevel:
@@ -855,11 +866,11 @@ class AnnotateToplevel:
         self.frame = Frame(self.main, style='Menu.TFrame')
         self.file_labelframe = Labelframe(self.frame, text='Path', labelanchor='w')
         self.file_entry = Entry(self.file_labelframe, state=DISABLED, justify='center')
-        self.open_button_icon = load_icon('Import')
+        self.open_button_icon = _load_icon('Import')
         self.open_button = Button(self.file_labelframe, image=self.open_button_icon, command=self.__open)
         self.attribute_labelframe = Labelframe(self.frame, text='Target Attribute ', labelanchor='w')
         self.attribute_entry = Combobox(self.attribute_labelframe, justify='center')
-        self.run_button_icon = load_icon('Run')
+        self.run_button_icon = _load_icon('Run')
         self.run_button = Button(self.frame, image=self.run_button_icon, command=self.__annotate)
 
     def _pack(self, selection, px=5, py=5):
@@ -890,9 +901,6 @@ class AnnotateToplevel:
         path = self.file_entry.get()
         attribute = self.attribute_entry.get()
 
-        self.file_entry.delete(0, END)
-        self.attribute_entry.configure(values=None)
-
         if not path:
 
             messagebox.showinfo(self.title, 'Please choose a path.')
@@ -902,6 +910,9 @@ class AnnotateToplevel:
             messagebox.showinfo(self.title, 'Please choose a target attribute.')
 
         else:
+
+            self.file_entry.delete(0, END)
+            self.attribute_entry.configure(values=None)
 
             self.main.withdraw()
 
@@ -956,7 +967,7 @@ class MergeToplevel:
         self.src_attr_label = Label(self.src_attr_frame)
         self.tgt_attr_frame = Labelframe(self.frame, text='Target Property ', labelanchor='w')
         self.tgt_attr_entry = Entry(self.tgt_attr_frame)
-        self.run_button_icon = load_icon('Run')
+        self.run_button_icon = _load_icon('Run')
         self.run_button = Button(self.frame, image=self.run_button_icon, command=self.__merge)
 
     def _pack(self, src_attributes, px=5, py=5):

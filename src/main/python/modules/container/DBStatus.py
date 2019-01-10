@@ -42,6 +42,7 @@ class DBStatusContainer:
 
             self.DBKeys = set(self.DBInterface.db_get_keys()).union(self.DBKeys)
             self.DBKeys.discard(self.DBActiveKey)
+
             self.DBProperties = self.DBInterface.db_get_attributes(self.DBActiveKey)
 
         elif self.DBStatus['connection'] == 'active' and not client_status:
@@ -53,5 +54,5 @@ class DBStatusContainer:
 
     def request_query_response(self, query):
 
-        self.DBQuery = self.DBInterface.db_query(query, self.DBActiveKey)
+        self.DBQuery = self.DBInterface.db_query(query, self.DBActiveKey, to_graph=True)
         self.DBStatus['query'] = 'active'

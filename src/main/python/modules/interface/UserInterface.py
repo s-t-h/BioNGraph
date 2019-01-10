@@ -106,6 +106,8 @@ class GUIMain:
         self.Master.Main.after(100, self.__display_state)
 
 
+
+
 class ThreadManager:
 
     def __init__(self):

@@ -836,12 +836,13 @@ class AnnotateToplevel:
 
     """
 
-    def __init__(self, dbinterface, fileinterface, threadmanager):
+    def __init__(self, dbcontainer, dbinterface, fileinterface, threadmanager):
         """
 
         """
 
         self.DBInterface = dbinterface
+        self.DBContainer = dbcontainer
         self.FileInterface = fileinterface
         self.ThreadManager = threadmanager
 
@@ -912,7 +913,7 @@ class AnnotateToplevel:
     def __upload_annotation(self, path, attribute):
 
         annotation = self.FileInterface.read_file(path=path, instruction=attribute)
-        self.DBInterface.db_annotate(annotation)
+        self.DBInterface.db_annotate(annotation, self.DBContainer.DBActiveKey)
 
     def __open(self):
 

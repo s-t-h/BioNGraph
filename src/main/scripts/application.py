@@ -47,7 +47,8 @@ if __name__ == '__main__':
                                   dbinterface=databaseInterface,
                                   threadmanager=threadManager)
 
-    annotateToplevel = AnnotateToplevel(dbinterface=databaseInterface,
+    annotateToplevel = AnnotateToplevel(dbcontainer=databaseStatusContainer,
+                                        dbinterface=databaseInterface,
                                         fileinterface=fileInterface,
                                         threadmanager=threadManager)
 

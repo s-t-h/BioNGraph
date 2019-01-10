@@ -564,36 +564,62 @@ class ExportPane:
 
             self.DBContainer.DBStatus['query'] = ' '
 
-            g = self.DBContainer.DBStatus['query']
+            vertex_keys = self.DBContainer.DBQuery[0]
+            edge_keys = self.DBContainer.DBQuery[1]
 
-            for table, columns, entries in [(self.vertex_table, g.vertex_attributes(), g.vs),
-                                            (self.edge_table, g.edge_attributes(), g.es)]:
+            vertices = self.DBContainer.DBQuery[2].Vertices
+            edges = self.DBContainer.DBQuery[2].Edges
+
+            for table, columns, entries in [(self.vertex_table, vertex_keys, vertices),
+                                            (self.edge_table, edge_keys, edges)]:
 
                 table['show'] = 'headings'
                 table.delete(*table.get_children())
                 table.config(columns=columns)
 
                 for name in columns:
+
                     table.heading(name, text=name)
 
                 for entry in entries:
 
-                    entry = entry.attributes()
-                    values = list(entry.values())
+                    values = [DISPLAY_SEPARATOR.join(
+                        [attribute for attribute in entry[key].split(MERGE_SEPARATOR) if attribute != 'NULL'])
+                        for key in columns]
 
-                    if 'name' in entry:
+                    try:
 
-                        iid = entry['name']
+                        if 'id' in entry:
 
-                        table.insert('', END, iid=iid, values=values, tags=['entry'])
+                            iid = values[columns.index('id')]
+                            table.insert('', 'end', iid=iid, values=values, tags=['entry'])
 
-                    elif 'source' in entry and 'target' in entry:
+                        elif 'source' in entry and 'target' in entry:
 
-                        iid = entry['source'] + entry['target']
+                            count = max([value.count(DISPLAY_SEPARATOR) for value in values])
 
-                        table.insert('', END, iid=iid, values=values, tags=['entry'])
+                            index = 0
 
-                    else:
+                            if count > 0:
+
+                                values = [value.split(', ') if value.count(DISPLAY_SEPARATOR) > 0
+                                          else [value] * (count + 1)
+                                          for value in values]
+
+                                values = list(map(list, zip(*values)))
+
+                                for value in values:
+                                    table.insert('', 'end', iid=index, values=value, tags=['entry'])
+
+                                    index += 1
+
+                            else:
+
+                                table.insert('', 'end', iid=index, values=values, tags=['entry'])
+
+                                index += 1
+
+                    except TclError:
 
                         pass
 

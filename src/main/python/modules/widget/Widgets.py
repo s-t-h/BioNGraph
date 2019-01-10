@@ -496,7 +496,6 @@ class ExportPane:
         self.menu_frame = Frame(self.main, style='Menu.TFrame')
         self.export_button_icon = load_icon('Export')
         self.export_button = Button(self.menu_frame, image=self.export_button_icon, command=self.__export)
-        self.auto_rename_button = Button(self.menu_frame, text='Foo', command=self.__auto_rename)
         self.vertex_table = _construct_table(self.main, 'Vertex', 'Treeview')
         self.edge_table = _construct_table(self.main, 'Vertex', 'Treeview')
 
@@ -528,7 +527,6 @@ class ExportPane:
 
         self.menu_frame.pack(side='top', fill='x')
         self.export_button.pack(side='left', padx=px, pady=py)
-        self.auto_rename_button.pack(side='left', padx=px, pady=py)
 
     def __export(self):
         """
@@ -652,24 +650,6 @@ class ExportPane:
             if selected_column_text not in ['id', 'source', 'target', '']:
 
                 menu.post(self.main.winfo_pointerx(), self.main.winfo_pointery())
-
-    def __auto_rename(self):
-
-        for table in [self.vertex_table, self.edge_table]:
-
-            for column in table['columns']:
-
-                new_column_text = str(column).split(DATA_SEPARATOR)
-                new_column_text = '_'.join([value.strip('v_').strip('e_') for value in new_column_text])
-
-                if new_column_text not in ['id', 'source', 'target']:
-
-                    old_column_text = table.heading(column)['text']
-
-                    table.heading(column, text=new_column_text)
-
-                    self.ThreadManager.stack_task('Rename Key',
-                                                  self.__rename_key, new_column_text, old_column_text)
 
 
 class EditPane:
@@ -827,8 +807,6 @@ class QueryToplevel:
         self.frame = Frame(self.main)
         self.menu_frame = Frame(self.frame, style='Menu.TFrame')
         self.query_text = Text(self.frame, background='snow4', foreground='snow')
-        self.collapse_button_icon = load_icon('Collapse')
-        self.collapse_button = Button(self.menu_frame, image=self.collapse_button_icon, command=self._unpack)
         self.run_button_icon = load_icon('Run')
         self.run_button = Button(self.menu_frame, image=self.run_button_icon, command=self.__run_query)
 
@@ -838,7 +816,6 @@ class QueryToplevel:
 
         self.frame.pack(side='top', fill='both')
         self.menu_frame.pack(side='top', fill='x')
-        self.collapse_button.pack(side='left', padx=px, pady=py)
         self.run_button.pack(side='right', padx=px, pady=py)
         self.query_text.pack(side='bottom', fill='both')
 

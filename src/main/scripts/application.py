@@ -1,19 +1,19 @@
-from modules.container.DBStatus import DBStatusContainer
-from modules.interface.FileInterface import FileInterface
-from modules.interface.UserInterface import GUIMain, ThreadManager
-from modules.interface.DatabaseInterface import DatabaseInterface
-from modules.parser.GRAPHML import GRAPHMLParser
-from modules.parser.JSON import JSONParser
-from modules.parser.CSV import CSVParser
-from modules.widget.Widgets import MainWidget, ClientMenu, DatabaseMenu, ImportPane, ExportPane, QueryToplevel, \
+from modules.GUI.container.DBStatus import DBStatusContainer
+from modules.RedisInterface.FileInterface import FileInterface
+from modules.GUI.UserInterface import GUIMain, ThreadManager
+from modules.RedisInterface.DatabaseInterface import DatabaseInterface
+from modules.RedisInterface.parser.GRAPHML import GRAPHMLParser
+from modules.RedisInterface.parser.JSON import JSONParser
+from modules.RedisInterface.parser.CSV import CSVParser
+from modules.GUI.Widgets import MainWidget, ClientMenu, DatabaseMenu, ImportPane, ExportPane, QueryToplevel, \
     AnnotateToplevel, MergeToplevel, EditPane
 
 if __name__ == '__main__':
 
     databaseInterface = DatabaseInterface()
-    databaseStatusContainer = DBStatusContainer(databaseInterface)
     fileInterface = FileInterface()
     threadManager = ThreadManager()
+    databaseStatusContainer = DBStatusContainer(databaseInterface, fileInterface)
 
     graphml = GRAPHMLParser()
     json = JSONParser()
@@ -25,35 +25,28 @@ if __name__ == '__main__':
     mainWidget = MainWidget()
 
     clientMenu = ClientMenu(parent=mainWidget.Main,
-                            dbinterface=databaseInterface,
+                            dbcontainer=databaseStatusContainer,
                             threadmanager = threadManager)
 
     databaseMenu = DatabaseMenu(parent=mainWidget.Main,
                                 dbcontainer=databaseStatusContainer,
-                                dbinterface=databaseInterface)
+                                threadmanager=threadManager)
 
     importPane = ImportPane(parent=mainWidget.sub_pane,
                             dbcontainer=databaseStatusContainer,
-                            dbinterface=databaseInterface,
-                            fileinterface=fileInterface,
                             threadmanager=threadManager)
 
     exportPane = ExportPane(parent=mainWidget.main_pane,
                             dbcontainer=databaseStatusContainer,
-                            fileinterface=fileInterface,
                             threadmanager=threadManager)
 
     queryToplevel = QueryToplevel(dbcontainer=databaseStatusContainer,
-                                  dbinterface=databaseInterface,
                                   threadmanager=threadManager)
 
     annotateToplevel = AnnotateToplevel(dbcontainer=databaseStatusContainer,
-                                        dbinterface=databaseInterface,
-                                        fileinterface=fileInterface,
                                         threadmanager=threadManager)
 
     mergeToplevel = MergeToplevel(dbcontainer=databaseStatusContainer,
-                                  dbinterface=databaseInterface,
                                   threadmanager=threadManager)
 
     editPane = EditPane(parent=mainWidget.sub_pane,

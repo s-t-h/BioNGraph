@@ -5,6 +5,7 @@ from queue import Queue, Empty
 from os.path import realpath
 from modules.GUI.Widgets import _load_icon
 from modules.GUI.Widgets import _alarm
+from traceback import format_exc
 
 
 class GUIMain:
@@ -139,8 +140,8 @@ class ThreadManager:
 
             target(*arg_tuple)
 
-        except BaseException as e:
+        except Exception as exc:
 
-            _alarm('Exception', str(e))
+            _alarm('Exception', 'An exception occurred \n\n' + format_exc())
 
-            raise e
+            raise exc

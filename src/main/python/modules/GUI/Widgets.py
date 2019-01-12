@@ -837,6 +837,8 @@ class QueryToplevel:
         self.__query_text = Text(self.__frame, background='snow4', foreground='snow')
         self.__run_button_icon = _load_icon('Run')
         self.__run_button = Button(self.__menu_frame, image=self.__run_button_icon, command=self.__run_query)
+        self.__explain_button_icon = _load_icon('Explain')
+        self.__explain_button = Button(self.__menu_frame, image=self.__explain_button_icon, command=self.__explain_query)
 
     def pack(self, px=5, py=5):
 
@@ -845,11 +847,16 @@ class QueryToplevel:
         self.__frame.pack(side='top', fill='both')
         self.__menu_frame.pack(side='top', fill='x')
         self.__run_button.pack(side='right', padx=px, pady=py)
+        self.__explain_button.pack(side='right', padx=px, pady=py)
         self.__query_text.pack(side='bottom', fill='both')
+
+    def __get_query(self):
+
+        return self.__query_text.get('1.0', END).replace('\n', ' ').replace('\t', ' ').lower()
 
     def __run_query(self):
 
-        query = self.__query_text.get('1.0', END).replace('\n', ' ').replace('\t', ' ').lower()
+        query = self.__get_query()
 
         if 'return' in query:
 
@@ -858,6 +865,19 @@ class QueryToplevel:
         else:
 
             self.ThreadManager.stack_task(self.DBContainer.DBInterface.db_query, (query, self.DBContainer.DBActiveKey))
+
+    def __explain_query(self):
+
+        query = self.__get_query()
+
+        def show_execution_plan(query, key):
+
+            execution_plan = self.DBContainer.DBInterface.db_explain(query, key)
+
+            _inform('Query',
+                    message='Cypher execution plan: \n\n' + execution_plan.decode('UTF-8'))
+
+        self.ThreadManager.stack_task(show_execution_plan, (query, self.DBContainer.DBActiveKey))
 
 
 class AnnotateToplevel:

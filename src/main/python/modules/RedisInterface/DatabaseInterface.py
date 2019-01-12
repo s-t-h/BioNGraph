@@ -39,6 +39,10 @@ class DatabaseInterface:
         except AttributeError:
             return False
 
+    def client_shutdown(self):
+
+        self.__Client.execute_command('SHUTDOWN SAVE')
+
     def __query(self, command, dbkey, report=False):
 
         def show_report():
@@ -189,6 +193,10 @@ class DatabaseInterface:
         else:
 
             self.__query(query, dbkey)
+
+    def db_explain(self, query, dbkey):
+
+        return self.__Client.execute_command('GRAPH.EXPLAIN', dbkey, query)
 
     def db_write(self, graph, dbkey):
 

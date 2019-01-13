@@ -1,5 +1,5 @@
 from modules.container.Tags import CREATE, VERTEX, SOURCE, TARGET, ID, EDGE, MATCH, WHERE, AND, NULL, NOT, IS, \
-    RETURN, OR, DELETE, SET
+    RETURN, OR, DELETE, SET, DATA_SEPARATOR
 
 
 def _dict_to_string(dictionary):
@@ -118,26 +118,37 @@ def graph_to_cypher(graph):
     return CREATE + create_vertex(*graph['vertices']) + create_edge(*graph['edges'])
 
 
-def annotation_dict_to_cypher(dict):
+def annotation_dict_to_cypher(target_property, map_property, property_prefix, dictionaries):
+
+    # TODO: If not all Vertices are matched, no property is set... Try atomic queries instead.
 
     match = MATCH
     set = SET
-    index = 0
+    dictionary_index = 0
 
-    for attribute in dict:
+    for dictionary in dictionaries:
 
-        entries = dict[attribute]
+        if dictionary_index > 0:
 
-        for entry in entries:
+            match += ','
+            set += ','
 
-            if index > 0:
-                match += ','
+        match += ' (v' + str(dictionary_index) + ' {' + target_property + ': ' + _wrap(dictionary.pop(map_property)) + '}' ') '
+
+        property_index = 0
+
+        for key, value in dictionary.items():
+
+            if property_index > 0:
+
                 set += ','
 
-            match += ' (v' + str(index) + ' {' + entry[0] + ': ' + _wrap(entry[1]) + '}' ') '
+            set += ' v' + str(dictionary_index) + '.' + property_prefix + DATA_SEPARATOR + key + IS + _wrap(value) + ' '
 
-            set += ' v' + str(index) + '.' + attribute + IS + _wrap(entry[2]) + ' '
+            property_index += 1
 
-            index += 1
+        dictionary_index += 1
+
+    print(match + set)
 
     return match + set

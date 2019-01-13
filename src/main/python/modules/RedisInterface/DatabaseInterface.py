@@ -205,9 +205,10 @@ class DatabaseInterface:
         map(lambda target: self.__Client.execute_command('GRAPH.QUERY', dbkey, 'CREATE INDEX ON ' + target),
             [':vertex(id)', ':edge(target)', 'edge(source)'])
 
-    def db_annotate(self, dictionary, dbkey):
+    def db_annotate(self, target_property, map_property, property_prefix, dictionaries, dbkey):
 
-        self.__query(annotation_dict_to_cypher(dictionary), dbkey, report=True)
+        self.__query(annotation_dict_to_cypher(target_property, map_property, property_prefix, dictionaries),
+                     dbkey, report=True)
 
     @staticmethod
     def __unify_sets(sets):

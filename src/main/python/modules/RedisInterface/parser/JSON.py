@@ -1,7 +1,7 @@
 from json import loads
 
 from modules.RedisInterface.parser.Parser import Parser
-from modules.container.Tags import DATA_SEPARATOR
+from modules.RedisInterface.Exceptions import FileInterfaceParserException
 
 
 class JSONParser(Parser):
@@ -12,18 +12,24 @@ class JSONParser(Parser):
 
     def parse(self, file):
 
-        data = loads(file.read())
+        if self._Mode == 'header_annotation':
 
-        self._Response = {}
+            self._Response = list(loads(file.read())[0].keys())
 
-        for attribute in data:
+        elif self._Mode == 'parse_annotation':
 
-            attribute_name = self._Filename + DATA_SEPARATOR + str(attribute).replace(DATA_SEPARATOR, '')
-            attribute_values = []
+            response = loads(file.read())
 
-            for identifier in data[attribute]:
+            for dictionary in response:
 
-                value = data[attribute][identifier]
-                attribute_values.append((self._Instruction, identifier, value))
+                to_delete = [key for key in list(dictionary.keys())
+                             if key not in self._Instruction]
 
-            self._Response[attribute_name] = attribute_values
+                for key in to_delete:
+                    del dictionary[key]
+
+            self._Response = response
+
+        else:
+
+            raise FileInterfaceParserException('JSON', self._Mode)

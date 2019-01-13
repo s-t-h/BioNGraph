@@ -2,6 +2,7 @@ import csv
 
 from modules.RedisInterface.parser.Parser import Parser
 from modules.container.Tags import DATA_SEPARATOR, TARGET, SOURCE, ID
+from modules.RedisInterface.Exceptions import FileInterfaceParserException
 
 
 class CSVParser(Parser):
@@ -12,14 +13,14 @@ class CSVParser(Parser):
 
     def parse(self, file):
 
-        if self._Mode == 'header':
+        if self._Mode == 'header_graph':
 
             def collect_vertex_attributes(attributes, container):
 
-                add_attribute = lambda: container.add(attributes.pop(0).split('_')[1])
-
                 while 'id' not in attributes[0]:
-                    add_attribute()
+
+                    container.add(attributes.pop(0).split('_')[1])
+
                 attributes.pop(0)
 
                 return container
@@ -36,7 +37,13 @@ class CSVParser(Parser):
             self._Response = \
                 list(source_attributes.union(target_attributes)) + edge_attributes
 
-        elif self._Mode == 'file':
+        elif self._Mode == 'header_annotation':
+
+            csv_reader = csv.reader(file)
+
+            self._Response = [key for key in next(csv_reader) if key != '']
+
+        elif self._Mode == 'parse_graph':
 
             def collect_vertex(items):
 
@@ -84,7 +91,6 @@ class CSVParser(Parser):
             identifiers = set()
             csv_reader = csv.DictReader(file)
 
-
             for entry in csv_reader:
 
                 entry = list(entry.items())
@@ -116,3 +122,21 @@ class CSVParser(Parser):
 
                     self._Response['edges'].append(edge)
                     identifiers.add(edge[SOURCE] + edge[TARGET])
+
+        elif self._Mode == 'parse_annotation':
+
+            response = [dict(dictionary) for dictionary in csv.DictReader(file)]
+
+            for dictionary in response:
+
+                to_delete = [key for key in list(dictionary.keys())
+                             if key not in self._Instruction]
+
+                for key in to_delete:
+                    del dictionary[key]
+
+            self._Response = response
+
+        else:
+
+            raise FileInterfaceParserException('CSV', self._Mode)

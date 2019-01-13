@@ -2,6 +2,7 @@ from xml.sax import make_parser, handler
 
 from modules.RedisInterface.parser.Parser import Parser
 from modules.container.Tags import EDGE, DATA_SEPARATOR, KEY, NODE, ID, SOURCE, TARGET, DATA
+from modules.RedisInterface.Exceptions import FileInterfaceParserException
 
 
 class GRAPHMLParser(Parser):
@@ -16,16 +17,23 @@ class GRAPHMLParser(Parser):
 
     def set_mode(self, mode):
 
-        if mode == 'header':
+        if mode == 'header_graph':
+
             self.__handler.startDocument = self.__handler.start_document_header
             self.__handler.startElement = self.__handler.start_element_header
             self.__handler.characters = self.__handler.reset
             self.__handler.endElement = self.__handler.reset
-        if mode == 'file':
+
+        elif mode == 'parse_graph':
+
             self.__handler.startDocument = self.__handler.start_document_parse
             self.__handler.startElement = self.__handler.start_element_parse
             self.__handler.characters = self.__handler.characters_parse
             self.__handler.endElement = self.__handler.end_element_parse
+
+        else:
+
+            raise FileInterfaceParserException('GRAPHML', mode)
 
     def set_filename(self, filename):
 
@@ -40,6 +48,7 @@ class GRAPHMLParser(Parser):
         return self.__handler.RESPONSE
 
     def parse(self, path):
+
         self.__parser.parse(path)
 
 

@@ -2,7 +2,7 @@ from os.path import basename
 from modules.GUI.container.File import File
 from igraph import plot
 
-from modules.RedisInterface.Exceptions import FileInterfaceParserException
+from modules.RedisInterface.Exceptions import FileInterfaceFileTypeException, FileInterfaceEmptyFileException
 
 
 class FileInterface:
@@ -15,18 +15,18 @@ class FileInterface:
 
         self.__Parser[key] = parser
 
-    def read_header(self, path, container):
+    def read_header(self, path, container, mode):
 
         file_type, file_name = self.__file_info(path)
 
         if file_type not in self.__Parser:
 
-            raise FileInterfaceParserException(file_type)
+            raise FileInterfaceFileTypeException(file_type)
 
         file = open(path)
 
         self.__Parser[file_type].set_filename(file_name)
-        self.__Parser[file_type].set_mode('header')
+        self.__Parser[file_type].set_mode(mode)
         self.__Parser[file_type].parse(file)
 
         file.close()
@@ -36,39 +36,34 @@ class FileInterface:
                                     values=self.__Parser[file_type].get_response(),
                                     ftype=file_type)
 
-    def read_file(self, instruction=None, file=None, path=None):
+    def read_file(self, instruction, file, mode):
 
-        if file:
+        if not file:
 
-            file_type = file[0]
-            file_name = file[1]
-            file_path = file[2]
+            raise FileInterfaceEmptyFileException()
 
-        elif path:
-
-            file_type, file_name = self.__file_info(path)
-            file_path = path
-
-        else:
-
-            file_type = None
-            file_name = None
-            file_path = None
+        file_type = file[0]
+        file_name = file[1]
+        file_path = file[2]
 
         if file_type not in self.__Parser:
 
-            raise FileInterfaceParserException(file_type)
+            raise FileInterfaceFileTypeException(file_type)
 
         file = open(file_path)
 
-        self.__Parser[file_type].set_mode('file')
-        self.__Parser[file_type].set_filename(file_name)
-        self.__Parser[file_type].set_instruction(instruction)
-        self.__Parser[file_type].parse(file)
+        try:
 
-        file.close()
+            self.__Parser[file_type].set_mode(mode)
+            self.__Parser[file_type].set_filename(file_name)
+            self.__Parser[file_type].set_instruction(instruction)
+            self.__Parser[file_type].parse(file)
 
-        return self.__Parser[file_type].get_response()
+            return self.__Parser[file_type].get_response()
+
+        finally:
+
+            file.close()
 
     def write_file(self, path, graph):
 
@@ -76,7 +71,7 @@ class FileInterface:
 
         if file_type not in ['graphml', 'png']:
 
-            raise FileInterfaceParserException(file_type)
+            raise FileInterfaceFileTypeException(file_type)
 
         if file_type == 'graphml':
 
@@ -88,9 +83,13 @@ class FileInterface:
 
                 file = open(path, 'w+')
 
-            graph.write_graphml(f=file)
+            try:
 
-            file.close()
+                graph.write_graphml(f=file)
+
+            finally:
+
+                file.close()
 
         elif file_type == 'png':
 

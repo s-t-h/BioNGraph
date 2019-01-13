@@ -8,23 +8,15 @@ from modules.GUI.Widgets import _alarm
 from traceback import format_exc
 
 
-class GUIMain:
+class GUIManager:
 
-    def __init__(self, dbinterface, dbcontainer, threadmanager, masterwidget, clientmenu, dbmenu, importpane, exportpane, editpane):
+    def __init__(self, dbinterface, dbcontainer, threadmanager, masterwidget):
 
         self.DBInterface = dbinterface
         self.DBContainer = dbcontainer
         self.ThreadManager = threadmanager
 
         self.Master = masterwidget
-        self.ClientMenu = clientmenu
-        self.DatabaseMenu = dbmenu
-        self.ImportPane = importpane
-        self.ExportPane = exportpane
-        self.EditPane = editpane
-
-        self.Master.add_view_menu_option(self.ClientMenu, label='Client Menu', image=self.ClientMenu.main_icon)
-        self.Master.add_view_menu_option(self.DatabaseMenu, label='Database Menu', image=self.DatabaseMenu.main_icon)
 
         self.repository_icon = _load_icon('Repository', width=15, height=15)
         self.repository_url = 'https://github.com/s-t-h/BioNGraph'
@@ -33,11 +25,7 @@ class GUIMain:
         self.userguide_url = 'file://' + realpath('../../resources/guide/UserGuide.html')
         self.Master.add_help_menu_option_url(self.userguide_url, label='User Guide', image=self.userguide_icon)
 
-        self.ClientMenu.pack()
-        self.DatabaseMenu.pack()
-        self.ImportPane.pack()
-        self.EditPane.pack()
-        self.ExportPane.pack()
+        self.Master.pack()
 
         self.__set_style()
         self.__request_state_update()
@@ -72,11 +60,15 @@ class GUIMain:
                     focuscolor=[('selected', 'lightsteelblue1')]
                     )
 
-        Style().configure('TCombobox',
-                          selectforeground='lightsteelblue4',
-                          selectbackground='white',
-                          foreground='lightsteelblue4',
-                          )
+        Style().map('TCombobox',
+                    fieldforeground=[('disabled', 'snow')],
+                    fieldbackground=[('disabled', 'snow2'), ('focus', 'lightsteelblue')]
+                    )
+
+        Style().map('TEntry',
+                    fieldforeground=[('disabled', 'snow')],
+                    fieldbackground=[('disabled', 'snow2'), ('focus', 'lightsteelblue')]
+                    )
 
     def __check_open_tasks(self):
         self.ThreadManager.check_open_tasks()
@@ -99,11 +91,7 @@ class GUIMain:
 
         state = self.DBContainer.DBStatus['connection']
 
-        self.ClientMenu.display_state(state)
-        self.DatabaseMenu.display_state(state)
-        self.ImportPane.display_state(state)
-        self.EditPane.display_state(state)
-        self.ExportPane.display_state(state)
+        self.Master.display_state(state)
 
         self.Master.Main.after(100, self.__display_state)
 

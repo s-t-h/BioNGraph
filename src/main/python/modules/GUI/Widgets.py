@@ -1,3 +1,4 @@
+from functools import reduce
 from threading import enumerate
 from tkinter import *
 from tkinter import messagebox, simpledialog
@@ -7,6 +8,7 @@ from PIL import ImageTk, Image
 from modules.container.Tags import DATA_SEPARATOR, DISPLAY_SEPARATOR, MERGE_SEPARATOR, VERTEX, EDGE, ID, TARGET, SOURCE
 from webbrowser import open_new
 from zipfile import ZipFile
+from copy import deepcopy
 
 
 def _load_icon(iconname, width=24, height=24):
@@ -21,9 +23,9 @@ def _load_icon(iconname, width=24, height=24):
         )
 
 
-def _construct_table(parent, label, style):
+def _construct_table(parent, style):
 
-    outer_frame = LabelFrame(parent, text=label, labelanchor='n')
+    outer_frame = Frame(parent)
     inner_frame = Frame(outer_frame)
     table = Treeview(inner_frame, selectmode='extended', style=style)
     hscrollbar = Scrollbar(outer_frame, orient='horizontal', command=table.xview)
@@ -34,8 +36,8 @@ def _construct_table(parent, label, style):
     table.pack(fill='both', anchor='w', side='left', expand=True)
     vscrollbar.pack(fill='y', anchor='e', side='right')
     hscrollbar.pack(anchor='s', side='bottom', fill='x')
-    outer_frame.pack(side='bottom', expand=True, fill='both', pady=15, padx=10)
     inner_frame.pack(expand=True, fill='both')
+    outer_frame.pack(side='bottom', expand=True, fill='both', pady=15, padx=10)
 
     return table
 
@@ -57,7 +59,7 @@ class MainWidget:
 
     """
 
-    def __init__(self):
+    def __init__(self, dbcontainer, threadmanager):
         """
 
         """
@@ -65,56 +67,123 @@ class MainWidget:
         self.Main = Tk()
         self.Main.title('BioNGraph')
 
-        self.__main_menu = Menu(self.Main)
-        self.__view_menu = Menu(self.__main_menu, tearoff=0)
-        self.__help_menu = Menu(self.__main_menu, tearoff=0)
-        self.Main.config(menu=self.__main_menu)
-        self.__main_menu.add_cascade(label='View', menu=self.__view_menu)
-        self.__main_menu.add_cascade(label='Help', menu=self.__help_menu)
         self.main_pane = Panedwindow(self.Main, orient='horizontal')
-        self.sub_pane = Panedwindow(self.Main, orient='vertical')
-        self.main_pane.pack(side='bottom', fill='both', expand=True)
+        self.sub_pane = Panedwindow(self.main_pane, orient='vertical')
+        self.sub_frame_top = Frame(self.sub_pane)
+        self.sub_frame_bottom = Frame(self.sub_pane)
+        self.sub_frame_right = Frame(self.main_pane)
+
         self.main_pane.add(self.sub_pane)
+        self.main_pane.add(self.sub_frame_right)
+        self.sub_pane.add(self.sub_frame_top)
+        self.sub_pane.add(self.sub_frame_bottom)
 
-        self.__view_menu_index = 0
+        self.__menubar = MenuBar(self.Main, dbcontainer, threadmanager)
+        self.__importnotebook = ImportNotebook(self.sub_frame_top, dbcontainer, threadmanager)
+        self.__editnotebook = EditNotebook(self.sub_frame_bottom, dbcontainer, threadmanager)
+        self.__exportnotebook = ExportNotebook(self.sub_frame_right, dbcontainer, threadmanager)
+
+        self.__main_menu = Menu(self.Main)
+        self.__about_menu = Menu(self.__main_menu, tearoff=0)
+        self.__main_menu.add_cascade(label='About', menu=self.__about_menu)
         self.__help_menu_index = 0
-
-    def add_view_menu_option(self, widget, label='', image=None):
-
-        index = self.__view_menu_index
-        self.__view_menu_index += 1
-
-        def toggle_on():
-
-            widget.pack()
-
-            self.__view_menu.entryconfigure(index=index, label='Hide ' + label, command=toggle_off)
-
-        def toggle_off():
-
-            widget.unpack()
-
-            self.__view_menu.entryconfigure(index=index, label='Show ' + label, command=toggle_on)
-
-        self.__view_menu.add_command(label='Hide ' + label, command=toggle_off)
-
-        if image:
-
-            self.__view_menu.entryconfigure(index=index, image=image, compound=LEFT)
+        self.Main.config(menu=self.__main_menu)
 
     def add_help_menu_option_url(self, url, label='', image=None):
 
-        index = self.__help_menu_index
-        self.__help_menu_index += 1
-
-        self.__help_menu.add_command(label=label, command=lambda: open_new(url))
+        self.__about_menu.add_command(label=label, command=lambda: open_new(url))
 
         if image:
 
-            self.__help_menu.entryconfigure(index=index, image=image, compound=LEFT)
+            self.__about_menu.entryconfigure(index=self.__help_menu_index, image=image, compound=LEFT)
+
+        self.__help_menu_index += 1
+
+    def pack(self):
+
+        self.__menubar.pack()
+
+        self.main_pane.pack(fill=BOTH, expand=True, side=BOTTOM)
+
+        self.__importnotebook.pack()
+        self.__editnotebook.pack()
+        self.__exportnotebook.pack()
+
+    def display_state(self, state):
+
+        self.__menubar.display_state(state)
+        self.__importnotebook.display_state(state)
+        self.__editnotebook.display_state(state)
+        self.__exportnotebook.display_state(state)
 
 
-class ClientMenu:
+class MenuBar:
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+
+        self.__main = Frame(parent, style='Menu.TFrame')
+
+        self.ClientMenu = ClientMenu(parent=self.__main,
+                                     dbcontainer=dbcontainer,
+                                     threadmanager=threadmanager)
+
+        self.DatabaseMenu = DatabaseMenu(parent=self.__main,
+                                         dbcontainer=dbcontainer,
+                                         threadmanager=threadmanager)
+
+        self.StatusMenu = StatusMenu(parent=self.__main,)
+
+    def pack(self):
+
+        self.__main.pack(side=TOP, fill=X, expand=True)
+
+        self.ClientMenu.pack()
+        self.DatabaseMenu.pack()
+        self.StatusMenu.pack()
+
+    def display_state(self, state):
+
+        self.ClientMenu.display_state(state)
+        self.DatabaseMenu.display_state(state)
+        self.StatusMenu.display_state(state)
+
+
+class SuperMenu:
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+
+        self.DB = dbcontainer
+        self.ThreadManager = threadmanager
+
+        self.Main = Frame(parent)
+
+        self.Widgets = {}
+        self.Icons = {}
+
+    def display_state(self, state):
+
+        pass
+
+    def pack(self, side=LEFT):
+
+        self.Main.pack(side=side, padx=1, pady=1, fill=X, expand=True)
+
+        for widget in self.Widgets.values():
+
+            widget.pack(side=side, padx=5, pady=5)
+
+    def unpack(self):
+
+        self.Main.pack_forget()
+
+    def configure_state(self, state, *args):
+
+        for arg in args:
+
+            self.Widgets[arg].configure(state=state)
+
+
+class ClientMenu(SuperMenu):
     """
 
     """
@@ -125,24 +194,16 @@ class ClientMenu:
         :param parent:
         """
 
-        self.DBContainer = dbcontainer
-        self.ThreadManager = threadmanager
+        super().__init__(parent, dbcontainer, threadmanager)
 
-        self.__main = Frame(parent, style='Menu.TFrame')
-        self.__connect_btn_icon = _load_icon('ServerConnect')
-        self.__disconnect_btn_icon = _load_icon('ServerDisconnect')
-        self.__connect_btn = Button(self.__main, image=self.__connect_btn_icon, command=self.__connect)
-        self.__port_frame = Labelframe(self.__main, text='Port ', labelanchor='w')
-        self.__host_frame = Labelframe(self.__main, text='Host ', labelanchor='w')
-        self.__port_entry = Entry(self.__port_frame, width=25, justify='center')
-        self.__host_entry = Entry(self.__host_frame, width=25, justify='center')
-        self.__status_connected_icon = _load_icon('Connected')
-        self.__status_disconnected_icon = _load_icon('Disconnected')
-        self.__status_indicator = Label(self.__main, image=self.__status_connected_icon)
-        self.__thread_indicator_icons = [_load_icon('Thread' + str(index)) for index in range(1, 9)]
-        self.__thread_indicator = Label(self.__main, image=None)
-        self.__thread_indicator_index = 0
-        self.main_icon = _load_icon('Server', width=15, height=15)
+        self.Icons['ServerConnect'] = _load_icon('ServerConnect')
+        self.Icons['ServerDisconnect'] = _load_icon('ServerDisconnect')
+
+        self.Widgets['ConnectButton'] = Button(self.Main, image=self.Icons['ServerConnect'], command=self.__connect)
+        self.Widgets['PortFrame'] = Labelframe(self.Main, text='Port ', labelanchor=W)
+        self.Widgets['PortEntry'] = Entry(self.Widgets['PortFrame'], width=25, justify=CENTER)
+        self.Widgets['HostFrame'] = Labelframe(self.Main, text='Host ', labelanchor=W)
+        self.Widgets['HostEntry'] = Entry(self.Widgets['HostFrame'], width=25, justify=CENTER)
 
     def display_state(self, state):
         """
@@ -153,59 +214,15 @@ class ClientMenu:
 
         if state == 'connected':
 
-            self.__connect_btn.configure(image=self.__disconnect_btn_icon)
-            self.__status_indicator.configure(image=self.__status_connected_icon)
+            self.Widgets['ConnectButton'].configure(image=self.Icons['ServerDisconnect'], command=self.__disconnect)
 
-            self.__connect_btn.configure(command=self.__disconnect)
-
-            self.__port_entry.configure(state=DISABLED)
-            self.__host_entry.configure(state=DISABLED)
+            self.configure_state(DISABLED, 'PortEntry', 'HostEntry')
 
         elif state == 'disconnected':
 
-            self.__connect_btn.configure(image=self.__connect_btn_icon)
-            self.__status_indicator.configure(image=self.__status_disconnected_icon)
+            self.Widgets['ConnectButton'].configure(image=self.Icons['ServerConnect'], command=self.__connect)
 
-            self.__connect_btn.configure(command=self.__connect)
-
-            self.__port_entry.configure(state=NORMAL)
-            self.__host_entry.configure(state=NORMAL)
-
-        self.__display_running_threads()
-
-    def pack(self, px=5, py=5):
-        """
-
-        :param px:
-        :param py:
-        :return:
-        """
-
-        self.__main.pack(side='top', fill='x')
-        self.__connect_btn.pack(side='left', padx=px, pady=py)
-        self.__port_frame.pack(side='left', padx=px, pady=py)
-        self.__host_frame.pack(side='left', padx=px, pady=py)
-        self.__port_entry.pack(padx=px, pady=py)
-        self.__host_entry.pack(padx=px, pady=py)
-        self.__status_indicator.pack(side='right', padx=px)
-        self.__thread_indicator.pack(side='right', padx=px)
-
-    def unpack(self):
-
-        self.__main.pack_forget()
-
-    def __display_running_threads(self):
-        """
-
-        :return:
-        """
-
-        if len(enumerate()) > 2:
-            self.__thread_indicator.configure(image=self.__thread_indicator_icons[self.__thread_indicator_index])
-            self.__thread_indicator_index += 1
-            self.__thread_indicator_index %= 8
-        else:
-            self.__thread_indicator.configure(image='')
+            self.configure_state(NORMAL, 'PortEntry', 'HostEntry')
 
     def __connect(self):
         """
@@ -213,10 +230,10 @@ class ClientMenu:
         :return:
         """
 
-        host = self.__host_entry.get()
-        port = self.__port_entry.get()
+        host = self.Widgets['HostEntry'].get()
+        port = self.Widgets['PortEntry'].get()
 
-        self.ThreadManager.stack_task(self.DBContainer.DBInterface.client_connect, (host, port))
+        self.ThreadManager.stack_task(self.DB.DBInterface.client_connect, (host, port))
 
     def __disconnect(self):
         """
@@ -224,10 +241,10 @@ class ClientMenu:
         :return:
         """
 
-        self.ThreadManager.stack_task(self.DBContainer.DBInterface.client_disconnect, ())
+        self.ThreadManager.stack_task(self.DB.DBInterface.client_disconnect, ())
 
 
-class DatabaseMenu:
+class DatabaseMenu(SuperMenu):
     """
 
     """
@@ -238,21 +255,21 @@ class DatabaseMenu:
         :param parent:
         """
 
-        self.DBContainer = dbcontainer
-        self.ThreadManager = threadmanager
+        super().__init__(parent, dbcontainer, threadmanager)
 
-        self.__main = Frame(parent, style='Menu.TFrame')
-        self.__delete_btn_icon = _load_icon('DataBaseDelete')
-        self.__delete_btn = Button(self.__main, image=self.__delete_btn_icon, command=self.__delete_key)
-        self.__save_button_icon = _load_icon('DataBaseBackup')
-        self.__save_button = Button(self.__main, image=self.__save_button_icon, command=self.__save_db)
-        self.__key_frame = Labelframe(self.__main, text='Graph ', labelanchor='w')
-        self.__key_entry = Combobox(self.__key_frame, width=23, justify='center')
-        self.main_icon = _load_icon('DataBase', width=15, height=15)
+        self.Icons['DatabaseDelete'] = _load_icon('DataBaseDelete')
+        self.Icons['DatabaseBackup'] = _load_icon('DataBaseBackup')
 
-        self.__key_entry.bind('<<ComboboxSelected>>', self.__set_key)
-        self.__key_entry.bind('<Return>', self.__add_key)
-        self.__key_entry.bind('<FocusOut>', self.__reset_key)
+        self.Widgets['Delete'] = Button(self.Main, image=self.Icons['DatabaseDelete'], command=self.__delete_key)
+        self.Widgets['Save'] = Button(self.Main, image=self.Icons['DatabaseBackup'], command=self.__save_db)
+        self.Widgets['KeyFrame'] = Labelframe(self.Main, text='Graph ', labelanchor=W)
+        self.Widgets['KeyEntry'] = Combobox(self.Widgets['KeyFrame'], width=23, justify=CENTER)
+
+        for binder in [('<<ComboboxSelected>>', self.__set_key),
+                       ('<Return>', self.__add_key),
+                       ('<FocusOut>', self.__reset_key)]:
+
+            self.Widgets['KeyEntry'].bind(binder[0], binder[1])
 
     def display_state(self, state):
         """
@@ -263,39 +280,13 @@ class DatabaseMenu:
 
         if state == 'connected':
 
-            self.__delete_btn.configure(state=NORMAL)
-            self.__save_button.configure(state=NORMAL)
-            self.__key_entry.configure(state=NORMAL)
+            self.configure_state(NORMAL, 'Delete', 'Save', 'KeyEntry')
 
         elif state == 'disconnected':
 
-            self.__delete_btn.configure(state=DISABLED)
-            self.__save_button.configure(state=DISABLED)
-            self.__key_entry.configure(state=DISABLED)
+            self.configure_state(DISABLED, 'Delete', 'Save', 'KeyEntry')
 
-        self.__key_entry.configure(values=list(self.DBContainer.DBKeys))
-
-    def pack(self, px=5, py=5):
-        """
-
-        :param px:
-        :param py:
-        :return:
-        """
-
-        self.__main.pack(side='top', fill='x')
-        self.__delete_btn.pack(side='left', padx=px, pady=py)
-        self.__save_button.pack(side='left', padx=px, pady=py)
-        self.__key_frame.pack(side='left', padx=px, pady=py)
-        self.__key_entry.pack(padx=px, pady=py)
-
-    def unpack(self):
-        """
-
-        :return:
-        """
-
-        self.__main.pack_forget()
+        self.Widgets['KeyEntry'].configure(values=list(self.DB.DBKeys))
 
     def __add_key(self, event):
         """
@@ -304,11 +295,11 @@ class DatabaseMenu:
         :return:
         """
 
-        self.DBContainer.add_key(
-            self.__key_entry.get().replace(' ', '')
+        self.DB.add_key(
+            self.Widgets['KeyEntry'].get().replace(' ', '')
         )
 
-        self.__key_entry.delete(0, END)
+        self.Widgets['KeyEntry'].delete(0, END)
 
     def __delete_key(self):
         """
@@ -316,9 +307,12 @@ class DatabaseMenu:
         :return:
         """
 
-        self.__key_entry.delete(0, END)
+        if messagebox.askokcancel('Delete Key',
+                                  'The deletion of a key will irretrievably delete any data associated with this key.'):
 
-        self.ThreadManager.stack_task(self.DBContainer.delete_key, ())
+            self.Widgets['KeyEntry'].delete(0, END)
+
+            self.ThreadManager.stack_task(self.DB.delete_key, ())
 
     def __set_key(self, event):
         """
@@ -326,7 +320,7 @@ class DatabaseMenu:
         :return:
         """
 
-        self.DBContainer.shift_key(self.__key_entry.get())
+        self.DB.shift_key(self.Widgets['KeyEntry'].get())
 
     def __reset_key(self, event):
         """
@@ -337,8 +331,8 @@ class DatabaseMenu:
 
         try:
 
-            self.__key_entry.delete(0, END)
-            self.__key_entry.insert(END, self.DBContainer.DBActiveKey)
+            self.Widgets['KeyEntry'].delete(0, END)
+            self.Widgets['KeyEntry'].insert(END, self.DB.DBActiveKey)
 
         except TclError:
 
@@ -354,38 +348,147 @@ class DatabaseMenu:
         :return:
         """
 
-        self.ThreadManager.stack_task(self.DBContainer.DBInterface.db_save, ())
+        self.ThreadManager.stack_task(self.DB.DBInterface.db_save, ())
 
 
-class ImportPane:
-    """
+class StatusMenu(SuperMenu):
 
-    """
-
-    def __init__(self, parent, dbcontainer, threadmanager):
+    def __init__(self, parent):
         """
 
         :param parent:
         """
 
+        super().__init__(parent, None, None)
+
+        self.Icons['Connected'] = _load_icon('Connected')
+        self.Icons['Disconnected'] = _load_icon('Disconnected')
+        self.Icons['Thread'] = [_load_icon('Thread' + str(index)) for index in range(1, 9)]
+
+        self.__thread_indicator_index = 0
+
+        self.Widgets['Status'] = Label(self.Main, image=self.Icons['Disconnected'])
+        self.Widgets['Thread'] = Label(self.Main, image=None)
+
+    def display_state(self, state):
+        """
+
+        :param state:
+        :return:
+        """
+
+        if state == 'connected':
+
+            self.Widgets['Status'].configure(image=self.Icons['Connected'])
+
+        elif state == 'disconnected':
+
+            self.Widgets['Status'].configure(image=self.Icons['Disconnected'])
+
+        self.__display_running_threads()
+
+    def pack(self, side=RIGHT):
+
+        super().pack(side=RIGHT)
+
+    def __display_running_threads(self):
+        """
+
+        :return:
+        """
+
+        if len(enumerate()) > 2:
+
+            self.Widgets['Thread'].configure(image=self.Icons['Thread'][self.__thread_indicator_index])
+
+            self.__thread_indicator_index += 1
+            self.__thread_indicator_index %= 8
+
+        else:
+
+            self.Widgets['Thread'].configure(image='')
+
+
+class ImportNotebook:
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+
+        self.__main = Notebook(parent)
+
+        self.ImportTab = ImportTab(self.__main, dbcontainer, threadmanager)
+        self.AnnotationTab = AnnotationTab(self.__main, dbcontainer, threadmanager)
+        self.PropertiesTab = PropertiesTab(self.__main, dbcontainer, threadmanager)
+
+    def pack(self):
+
+        self.__main.pack(fill=BOTH, expand=True)
+
+        self.ImportTab.pack()
+        self.AnnotationTab.pack()
+        self.PropertiesTab.pack()
+
+    def display_state(self, state):
+
+        self.ImportTab.display_state(state)
+        self.AnnotationTab.display_state(state)
+        self.PropertiesTab.display_state(state)
+
+
+class SuperTab:
+
+    def __init__(self, parent, tab_name, dbcontainer, threadmanager):
+
         self.DB = dbcontainer
         self.ThreadManager = threadmanager
-        self.ImportedFiles = {}
 
-        self.__main = Frame()
-        parent.add(self.__main)
-        self.__menu_frame = Frame(self.__main, style='Menu.TFrame')
-        self.__open_button_icon = _load_icon('Import')
-        self.__open_button = Button(self.__menu_frame, image=self.__open_button_icon, command=self.open)
-        self.__upload_button_icon = _load_icon('Upload')
-        self.__upload_button = Button(self.__menu_frame, image=self.__upload_button_icon, command=self.upload)
-        self.__import_table = _construct_table(self.__main, 'Import', 'Import.Treeview')
+        self.Main = Frame()
 
-        self.__import_table.configure(columns=['path'])
-        self.__import_table.heading('#0', text='Name')
-        self.__import_table.heading('path', text='Path')
+        parent.add(self.Main, text=tab_name)
 
-    def open(self):
+        self.Widgets = {}
+        self.Icons = {}
+
+    def display_state(self, state):
+
+        pass
+
+    def pack(self, side=LEFT):
+
+        for widget in self.Widgets.values():
+
+            widget.pack(side=side, padx=5, pady=5)
+
+    def unpack(self):
+
+        self.Main.pack_forget()
+
+    def configure_state(self, state, *args):
+
+        for arg in args:
+
+            self.Widgets[arg].configure(state=state)
+
+
+class SuperImport(SuperTab):
+
+    def __init__(self, parent, tab_name, table_style, dbcontainer, threadmanager):
+
+        super().__init__(parent, tab_name, dbcontainer, threadmanager)
+
+        self.Icons['Import'] = _load_icon('Import')
+        self.Icons['Upload'] = _load_icon('Upload')
+
+        self.Container = {'In': {}, 'Out': []}
+
+        self.Widgets['Menu'] = Frame(self.Main, style='Menu.TFrame')
+        self.Widgets['Import'] = Button(self.Widgets['Menu'], image=self.Icons['Import'], command=self.open)
+        self.Widgets['Upload'] = Button(self.Widgets['Menu'], image=self.Icons['Upload'], command=self.upload)
+        self.Widgets['TargetFrame'] = Labelframe(self.Widgets['Menu'], text='Target/Source-Property ', labelanchor=W)
+        self.Widgets['TargetEntry'] = Combobox(self.Widgets['TargetFrame'], width=30, justify=CENTER)
+        self.Widgets['MapEntry'] = Combobox(self.Widgets['TargetFrame'], width=30, justify=CENTER)
+        self.Widgets['Table'] = _construct_table(self.Main, style=table_style)
+
+    def open(self, mode):
         """
 
         :return:
@@ -399,7 +502,7 @@ class ImportPane:
 
             path = askopenfilename()
 
-            self.ThreadManager.stack_task(self.DB.FileInterface.read_header, (path, self.ImportedFiles))
+            self.ThreadManager.stack_task(self.DB.FileInterface.read_header, (path, self.Container['In'], mode))
 
     def upload(self):
         """
@@ -407,43 +510,37 @@ class ImportPane:
         :return:
         """
 
-        def upload_thread():
-
-            for file_type, file_name, file_path, selection in upload_list:
-
-                graph = self.DB.FileInterface.read_file(file=(file_type, file_name, file_path), instruction=selection)
-
-                self.DB.DBInterface.db_write(graph, key)
-
         if not self.DB.DBActiveKey:
 
             _inform('Upload', 'Please select a Graph to work on first.')
 
         else:
 
-            key = self.DB.DBActiveKey
+            excluded = self.Widgets['Table'].selection()
 
-            excluded = self.__import_table.selection()
-
-            upload_list = []
-
-            for file in self.__import_table.get_children():
+            for file in self.Widgets['Table'].get_children():
 
                 if file not in excluded:
 
                     selection = [child.split(DATA_SEPARATOR)[1]
-                                 for child in self.__import_table.get_children(file)
+                                 for child in self.Widgets['Table'].get_children(file)
                                  if child not in excluded]
 
-                    file = self.ImportedFiles.pop(file)
+                    file = self.Container['In'][file]
 
                     file_type = file.Type
                     file_name = file.Name
                     file_path = file.Path
 
-                    upload_list.append((file_type, file_name, file_path, selection))
+                    self.Container['Out'].append((file_type, file_name, file_path, selection))
 
-            self.ThreadManager.stack_task(upload_thread, ())
+    def pack(self, side=LEFT):
+
+        super().pack()
+
+        self.Widgets['TargetFrame'].pack(side=RIGHT, padx=5, pady=5, fill=X, expand=True)
+        self.Widgets['Menu'].pack(side=TOP, padx=5, pady=5, fill=X, expand=True)
+        self.Widgets['Table'].pack(side=BOTTOM, padx=5, pady=5, fill=BOTH, expand=True)
 
     def display_state(self, state):
         """
@@ -454,55 +551,550 @@ class ImportPane:
 
         if state == 'connected':
 
-            self.__open_button.configure(state=NORMAL)
-            self.__upload_button.configure(state=NORMAL)
+            self.configure_state(NORMAL, 'Import', 'Upload', 'TargetEntry', 'MapEntry')
 
         elif state == 'disconnected':
 
-            self.__open_button.configure(state=DISABLED)
-            self.__upload_button.configure(state=DISABLED)
+            self.configure_state(DISABLED, 'Import', 'Upload', 'TargetEntry', 'MapEntry')
 
-        self.__display_imported_files()
+        self.display_container()
 
-    def pack(self, px=5, py=5):
-        """
-
-        :param px:
-        :param py:
-        :return:
-        """
-
-        self.__menu_frame.pack(side='top', fill='x')
-        self.__open_button.pack(side='left', padx=px, pady=py)
-        self.__upload_button.pack(side='left', padx=px, pady=py)
-
-    def __display_imported_files(self):
+    def display_container(self):
         """
 
         :return:
         """
 
-        displayed = self.__import_table.get_children()
+        displayed = self.Widgets['Table'].get_children()
 
-        for file in self.ImportedFiles.values():
+        for file in self.Container['In'].values():
 
             if file.Name not in displayed:
 
-                self.__import_table.insert('', END, file.Name, text=file.Name, values=[file.Path])
+                self.Widgets['Table'].insert('', END, file.Name, text=file.Name, values=[file.Path], open=True)
 
                 for attribute in file.Values:
 
                     iid = file.Name + DATA_SEPARATOR + attribute
-                    self.__import_table.insert(file.Name, END, iid, text=attribute)
+                    self.Widgets['Table'].insert(file.Name, END, iid, text=attribute)
 
         for file_name in displayed:
 
-            if file_name not in self.ImportedFiles:
+            if file_name not in self.Container['In']:
 
-                self.__import_table.delete(file_name)
+                self.Widgets['Table'].delete(file_name)
 
 
-class ExportPane:
+class ImportTab(SuperImport):
+    """
+
+    """
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+        """
+
+        :param parent:
+        """
+
+        super().__init__(parent, 'Import', 'Import.Treeview', dbcontainer, threadmanager)
+
+        self.Widgets['Table'].configure(columns=['path'])
+        self.Widgets['Table'].heading('#0', text='Name')
+        self.Widgets['Table'].heading('path', text='Path')
+
+    def open(self, mode='header_graph'):
+
+        super().open(mode)
+
+    def upload(self):
+        """
+
+        :return:
+        """
+
+        def upload_(file_type, file_name, file_path, selection):
+
+            try:
+
+                graph = self.DB.FileInterface.read_file(selection, (file_type, file_name, file_path), 'parse_graph')
+
+                self.DB.DBInterface.db_write(graph, self.DB.DBActiveKey)
+
+                del self.Container['In'][file_name]
+
+            finally:
+
+                self.Container['Out'].remove((file_type, file_name, file_path, selection))
+
+        super().upload()
+
+        for file in self.Container['Out']:
+
+            self.ThreadManager.stack_task(upload_, file)
+
+    def display_state(self, state):
+        """
+
+        :param state:
+        :return:
+        """
+
+        super().display_state(state)
+
+        super().configure_state(DISABLED, 'TargetEntry', 'MapEntry')
+
+
+class AnnotationTab(SuperImport):
+    """
+
+        """
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+        """
+
+        :param parent:
+        """
+
+        super().__init__(parent, 'Annotation', 'Import.Treeview', dbcontainer, threadmanager)
+
+        self.Widgets['Table'].configure(columns=['path'], selectmode=EXTENDED)
+        self.Widgets['Table'].heading('#0', text='Name')
+        self.Widgets['Table'].heading('path', text='Path')
+
+    def open(self, mode='header_annotation'):
+
+        super().open(mode)
+
+    def upload(self):
+        """
+
+        :return:
+        """
+
+        def annotate_():
+
+            target_property = self.Widgets['TargetEntry'].get()
+            map_property = self.Widgets['MapEntry'].get()
+
+            if not target_property:
+
+                _inform('Annotation', 'Please choose a target-property.')
+
+            elif not map_property:
+
+                _inform('Annotation', 'Please choose a property to map the chosen target-property.')
+
+            else:
+
+                if map_property not in selection:
+
+                    selection.append(map_property)
+
+                annotation = self.DB.FileInterface.read_file(selection,
+                                                             (file_type, file_name, file_path),
+                                                             'parse_annotation')
+
+                self.DB.DBInterface.db_annotate(target_property, map_property, file_name, annotation, self.DB.DBActiveKey)
+
+                del self.Container['In'][file_name]
+
+            self.Container['Out'].remove((file_type, file_name, file_path, selection))
+
+        super().upload()
+
+        for file_type, file_name, file_path, selection in self.Container['Out']:
+
+            self.ThreadManager.stack_task(annotate_, ())
+
+    def display_state(self, state):
+
+        super().display_state(state)
+
+        self.adjust_entry_width()
+
+    def display_container(self):
+
+        super().display_container()
+
+        self.Widgets['TargetEntry'].configure(values=[property for property in self.DB.DBProperties[0]
+                                                      if property != 'id'])
+
+        possible_properties = []
+
+        for file in self.Widgets['Table'].get_children():
+
+            if file not in self.Widgets['Table'].selection():
+
+                possible_properties.append(set(self.Widgets['Table'].get_children(file)))
+
+        if possible_properties:
+
+            map_properties = reduce(lambda set1, set2: set1.intersection(set2), possible_properties)
+
+            map_properties = [property.split(DATA_SEPARATOR)[1] for property in map_properties]
+
+        else:
+
+            map_properties = []
+
+        self.Widgets['MapEntry'].configure(values=list(map_properties))
+
+    def adjust_entry_width(self):
+
+        self.Widgets['TargetEntry'].configure(width=
+                                              max(30, len(self.Widgets['TargetEntry'].get()))
+                                              )
+
+        self.Widgets['MapEntry'].configure(width=
+                                           max(30, len(self.Widgets['MapEntry'].get()))
+                                           )
+
+
+class PropertiesTab(SuperImport):
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+        """
+
+        :param parent:
+        """
+
+        super().__init__(parent, 'Properties', 'Edit.Treeview', dbcontainer, threadmanager)
+
+        self.Widgets['Table'].configure(columns=['root', 'type'])
+        self.Widgets['Table'].heading('#0', text='Name')
+        self.Widgets['Table'].heading('root', text='Source')
+        self.Widgets['Table'].heading('type', text='Type')
+
+    def open(self, mode=None):
+
+        pass
+
+    def upload(self):
+        """
+
+        :return:
+        """
+
+        pass
+
+    def display_state(self, state):
+
+        self.configure_state(DISABLED, 'Import', 'Upload', 'TargetEntry', 'MapEntry')
+
+        self.display_container()
+
+        self.set_selection()
+
+    def display_container(self):
+
+        def insert(p, property_type):
+            """
+
+            :param p:
+            :param property_type:
+            :return:
+            """
+
+            try:
+
+                property_root, property_name = p.split(DATA_SEPARATOR)
+
+                self.Widgets['Table'].insert('', 'end',
+                                             iid=p,
+                                             text=property_name,
+                                             values=[property_root, property_type]
+                                             )
+
+            except IndexError:
+
+                self.Widgets['Table'].insert('', 'end',
+                                             iid=p,
+                                             text=p,
+                                             values=['Undefined', 'Undefined']
+                                             )
+
+        displayed = self.Widgets['Table'].get_children()
+        properties = self.DB.DBProperties
+
+        for property_ in properties[0]:
+
+            if property_ not in displayed:
+
+                if property_ not in ['id']:
+
+                    insert(property_, VERTEX)
+
+        for property_ in properties[1]:
+
+            if property_ not in displayed:
+
+                if property_ not in ['src', 'tgt', 'source', 'target']:
+
+                    insert(property_, EDGE)
+
+        for property_ in displayed:
+
+            if property_ not in properties[0] and property_ not in properties[1]:
+
+                self.Widgets['Table'].delete(property_)
+
+    def set_selection(self):
+
+        selection = [selected for selected in self.Widgets['Table'].selection()
+                     if self.Widgets['Table'].item(selected)['values'][1] == VERTEX]
+
+        self.DB.UserSelection = selection
+
+
+class EditNotebook:
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+
+        self.__main = Notebook(parent)
+
+        self.MergeTab = MergeTab(self.__main, dbcontainer, threadmanager)
+        self.QueryTab = QueryTab(self.__main, dbcontainer, threadmanager)
+
+    def pack(self):
+
+        self.__main.pack(fill=BOTH, expand=True)
+
+        self.MergeTab.pack()
+        self.QueryTab.pack()
+
+    def display_state(self, state):
+
+        self.MergeTab.display_state(state)
+        self.QueryTab.display_state(state)
+
+
+class SuperEdit(SuperTab):
+
+    def __init__(self, parent, tab_name, dbcontainer, threadmanager):
+
+        super().__init__(parent, tab_name, dbcontainer, threadmanager)
+
+        self.Icons['Run'] = _load_icon('Run')
+
+        self.Widgets['Menu'] = Frame(self.Main, style='Menu.TFrame')
+        self.Widgets['Run'] = Button(self.Widgets['Menu'], image=self.Icons['Run'], command=self.run)
+
+    def run(self):
+
+        pass
+
+    def pack(self, side=RIGHT):
+
+        super().pack(side=side)
+
+        self.Widgets['Menu'].pack(side=TOP, padx=5, pady=5, fill=X, expand=True)
+
+    def display_state(self, state):
+        """
+
+        :param state:
+        :return:
+        """
+
+        if state == 'connected':
+
+            self.configure_state(NORMAL, 'Run')
+
+        elif state == 'disconnected':
+
+            self.configure_state(DISABLED, 'Run')
+
+
+class QueryTab(SuperEdit):
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+
+        super().__init__(parent, 'Query', dbcontainer, threadmanager)
+
+        self.Icons['Explain'] = _load_icon('Explain')
+
+        self.Widgets['Explain'] = Button(self.Widgets['Menu'], image=self.Icons['Explain'], command=self.__explain_query)
+        self.Widgets['Text'] = Text(self.Main, background='snow4', foreground='snow')
+
+    def run(self):
+
+        if not self.DB.DBActiveKey:
+
+            _inform('Query', 'Please select a Graph to work on first.')
+
+        else:
+
+            query = self.__get_query()
+
+            if 'return' in query:
+
+                self.ThreadManager.stack_task(self.DB.request_query_response, (query,))
+
+            else:
+
+                self.ThreadManager.stack_task(self.DB.request_query_response, (query, self.DB.DBActiveKey))
+
+    def pack(self, px=5, py=5):
+
+        super().pack()
+
+        self.Widgets['Explain'].pack(side=RIGHT, padx=px, pady=py)
+        self.Widgets['Text'].pack(side=BOTTOM, expand=True, fill=BOTH, padx=px, pady=py)
+
+    def display_state(self, state):
+
+        if state == 'connected':
+
+            self.configure_state(NORMAL, 'Run', 'Explain', 'Text')
+
+        elif state == 'disconnected':
+
+            self.configure_state(DISABLED, 'Run', 'Explain', 'Text')
+
+    def __get_query(self):
+
+        return self.Widgets['Text'].get('1.0', END).replace('\n', ' ').replace('\t', ' ').lower()
+
+    def __explain_query(self):
+
+        query = self.__get_query()
+
+        def show_execution_plan(query, key):
+
+            execution_plan = self.DB.DBInterface.db_explain(query, key)
+
+            _inform('Query',
+                    message='Cypher execution plan: \n\n' + execution_plan.decode('UTF-8'))
+
+        self.ThreadManager.stack_task(show_execution_plan, (query, self.DB.DBActiveKey))
+
+
+class MergeTab(SuperEdit):
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+
+        super().__init__(parent, 'Merge', dbcontainer, threadmanager)
+
+        self.target_attribute_exists = False
+
+        self.Widgets['SrcKeyFrame'] = Labelframe(self.Widgets['Menu'], text='Source Graph ', labelanchor=W)
+        self.Widgets['SrcKeyLabel'] = Label(self.Widgets['SrcKeyFrame'])
+        self.Widgets['TgtKeyFrame'] = Labelframe(self.Widgets['Menu'], text='Target Graph ', labelanchor=W)
+        self.Widgets['TgtKeyEntry'] = Combobox(self.Widgets['TgtKeyFrame'], justify=CENTER)
+        self.Widgets['SrcAttrFrame'] = Labelframe(self.Widgets['Menu'], text='Source Properties ', labelanchor=W)
+        self.Widgets['SrcAttrLabel'] = Label(self.Widgets['SrcAttrFrame'])
+        self.Widgets['TgtAttrFrame'] = Labelframe(self.Widgets['Menu'], text='Target Property ', labelanchor=W)
+        self.Widgets['TgtAttrEntry'] = Entry(self.Widgets['TgtAttrFrame'], width=22, justify=CENTER)
+
+    def run(self):
+
+        if not self.DB.DBActiveKey:
+
+            _inform('Merge', 'Please select a Graph to work on first.')
+
+        elif not self.DB.UserSelection:
+
+            _inform('Merge', 'Please select at least on attribute to merge.')
+
+        else:
+
+            target_attribute = 'merge' + DATA_SEPARATOR \
+                               + str(self.Widgets['TgtAttrEntry'].get()).replace('_', '').replace(' ', '')
+
+            target_graph = self.Widgets['TgtKeyEntry'].get()
+
+            if not target_graph:
+
+                _inform('Merge', 'Please enter a target-graph key.')
+
+            elif not target_attribute.lstrip('merge' + DATA_SEPARATOR):
+
+                _inform('Merge', 'Please enter a target attribute.')
+
+            else:
+
+                source_attributes = list(deepcopy(self.DB.UserSelection))
+                source_attributes.insert(0, target_attribute)
+
+                self.ThreadManager.stack_task(self.DB.DBInterface.db_merge,
+                                              (source_attributes,
+                                               self.DB.DBActiveKey,
+                                               target_graph,
+                                               not self.target_attribute_exists)
+                                              )
+
+    def pack(self, px=5, py=5):
+
+        super().pack()
+
+        self.Widgets['SrcKeyFrame'].pack(padx=px, pady=py, side=TOP, anchor=NW, fill=X)
+        self.Widgets['SrcKeyLabel'].pack(padx=110, pady=py, side=LEFT)
+        self.Widgets['SrcAttrFrame'].pack(padx=px, pady=py, side=BOTTOM, anchor=SW, fill=X)
+        self.Widgets['SrcAttrLabel'].pack(padx=90, pady=py, side=LEFT)
+        self.Widgets['TgtKeyFrame'].pack(padx=px, pady=py, side=TOP, anchor=N, fill=X)
+        self.Widgets['TgtKeyEntry'].pack(padx=113, pady=py, side=LEFT)
+        self.Widgets['TgtAttrFrame'].pack(padx=px, pady=py, side=BOTTOM, anchor=S, fill=X)
+        self.Widgets['TgtAttrEntry'].pack(padx=100, pady=py, side=LEFT)
+
+    def display_state(self, state):
+
+        if state == 'connected':
+
+            self.configure_state(NORMAL, 'Run', 'TgtKeyEntry', 'TgtAttrEntry')
+
+        elif state == 'disconnected':
+
+            self.configure_state(DISABLED, 'Run', 'TgtKeyEntry', 'TgtAttrEntry')
+
+        elif state == 'active':
+
+            merge_attribute = set(property.split(DATA_SEPARATOR)[1]
+                                  for property in self.DB.DBProperties[0]
+                                  if property.split(DATA_SEPARATOR)[0] == 'merge')
+
+            if merge_attribute:
+
+                self.target_attribute_exists = True
+                self.Widgets['TgtAttrEntry'].insert(END, merge_attribute.pop())
+                self.Widgets['TgtAttrEntry'].configure(state=DISABLED)
+
+            else:
+
+                self.target_attribute_exists = False
+                self.Widgets['TgtAttrEntry'].configure(state=NORMAL)
+
+            if self.DB.DBActiveKey:
+
+                self.Widgets['SrcKeyLabel'].configure(text=self.DB.DBActiveKey)
+
+            else:
+
+                self.Widgets['SrcKeyLabel'].configure(text='')
+
+            self.Widgets['SrcAttrLabel'].configure(text='\n'.join(self.DB.UserSelection))
+            self.Widgets['TgtKeyEntry'].configure(values=[entry for entry in self.DB.DBKeys])
+
+
+class ExportNotebook:
+
+    def __init__(self, parent, dbcontainer, threadmanager):
+
+        self.__main = Notebook(parent)
+
+        self.TableTab = TableTab(self.__main, dbcontainer, threadmanager)
+
+    def pack(self):
+
+        self.__main.pack(fill=BOTH, expand=True)
+
+        self.TableTab.pack()
+
+    def display_state(self, state):
+
+        self.TableTab.display_state(state)
+
+
+class TableTab(SuperTab):
     """
 
     """
@@ -513,19 +1105,31 @@ class ExportPane:
         :param dbcontainer:
         """
 
-        self.DBContainer = dbcontainer
-        self.ThreadManager = threadmanager
+        super().__init__(parent, 'Table', dbcontainer, threadmanager)
 
-        self.__main = Frame()
-        parent.add(self.__main)
-        self.__menu_frame = Frame(self.__main, style='Menu.TFrame')
-        self.__export_button_icon = _load_icon('Export')
-        self.__export_button = Button(self.__menu_frame, image=self.__export_button_icon, command=self.__export)
-        self.__vertex_table = _construct_table(self.__main, 'Vertex', 'Treeview')
-        self.__edge_table = _construct_table(self.__main, 'Edge', 'Treeview')
+        self.Icons['Export'] = _load_icon('Export')
 
-        self.__vertex_table.bind('<Button-3>', lambda event: self.__rename_popup(self.__vertex_table, event))
-        self.__edge_table.bind('<Button-3>', lambda event: self.__rename_popup(self.__edge_table, event))
+        self.Widgets['Menu'] = Frame(self.Main, style='Menu.TFrame')
+        self.Widgets['Export'] = Button(self.Widgets['Menu'], image=self.Icons['Export'], command=self.__export)
+        self.Widgets['VertexTable'] = _construct_table(self.Main, 'Treeview')
+        self.Widgets['EdgeTable'] = _construct_table(self.Main, 'Treeview')
+
+        self.Widgets['VertexTable'].bind('<Button-3>',
+                                         lambda event: self.__rename_popup(self.Widgets['VertexTable'], event))
+
+        self.Widgets['EdgeTable'].bind('<Button-3>',
+                                       lambda event: self.__rename_popup(self.Widgets['EdgeTable'], event))
+
+    def pack(self, px=5, py=5):
+        """
+
+        :return:
+        """
+
+        super().pack()
+
+        self.Widgets['Menu'].pack(side=TOP, fill=X)
+        self.Widgets['Export'].pack(side=LEFT, padx=px, pady=py)
 
     def display_state(self, state):
         """
@@ -536,22 +1140,13 @@ class ExportPane:
 
         if state == 'connected':
 
-            self.__export_button.configure(state=NORMAL)
+            self.Widgets['Export'].configure(state=NORMAL)
 
         elif state == 'disconnected':
 
-            self.__export_button.configure(state=DISABLED)
+            self.Widgets['Export'].configure(state=DISABLED)
 
         self.__display_query_response()
-
-    def pack(self, px=5, py=5):
-        """
-
-        :return:
-        """
-
-        self.__menu_frame.pack(side='top', fill='x')
-        self.__export_button.pack(side='left', padx=px, pady=py)
 
     def __export(self):
         """
@@ -559,7 +1154,7 @@ class ExportPane:
         :return:
         """
 
-        if not self.DBContainer.DBQuery:
+        if not self.DB.DBQuery:
 
             _inform('Export', 'No query to export was found.')
 
@@ -571,7 +1166,7 @@ class ExportPane:
                            ("png file", "*.png")]
             )
 
-            self.ThreadManager.stack_task(self.DBContainer.FileInterface.write_file, (path, self.DBContainer.DBQuery))
+            self.ThreadManager.stack_task(self.DB.FileInterface.write_file, (path, self.DB.DBQuery))
 
     def __display_query_response(self):
         """
@@ -579,7 +1174,7 @@ class ExportPane:
         :return:
         """
 
-        if self.DBContainer.DBStatus['query'] == 'active':
+        if self.DB.DBStatus['query'] == 'active':
 
             def assemble_headings(table, headings):
 
@@ -590,11 +1185,27 @@ class ExportPane:
 
                 for heading in headings:
 
+                    if heading == 'id':
+
+                        text = 'ID'
+
+                    elif heading == 'src':
+
+                        text = 'SOURCE'
+
+                    elif heading == 'tgt':
+
+                        text = 'TARGET'
+
+                    else:
+
+                        text = heading
+
                     table.heading(heading, text=heading)
 
-            self.DBContainer.DBStatus['query'] = ' '
+            self.DB.DBStatus['query'] = ' '
 
-            graph = self.DBContainer.DBQuery
+            graph = self.DB.DBQuery
 
             table_index = 0
 
@@ -606,8 +1217,8 @@ class ExportPane:
 
                 pass
 
-            for table, properties, entries in [(self.__vertex_table, graph.vertex_attributes(), graph.vs),
-                                               (self.__edge_table, graph.edge_attributes(), graph.es)]:
+            for table, properties, entries in [(self.Widgets['VertexTable'], graph.vertex_attributes(), graph.vs),
+                                               (self.Widgets['EdgeTable'], graph.edge_attributes(), graph.es)]:
 
                 assemble_headings(table, properties)
 
@@ -621,13 +1232,13 @@ class ExportPane:
 
     def __rename_key(self, new_name, old_name):
 
-        for vertex in self.DBContainer.DBQuery.vs:
+        for vertex in self.DB.DBQuery.vs:
 
             if old_name in vertex:
 
                 vertex[new_name] = vertex.pop(old_name)
 
-        for edge in self.DBContainer.DBQuery.es:
+        for edge in self.DB.DBQuery.es:
 
             if old_name in edge:
 
@@ -674,403 +1285,4 @@ class ExportPane:
 
             if selected_column_text not in ['id', 'source', 'target', '']:
 
-                menu.post(self.__main.winfo_pointerx(), self.__main.winfo_pointery())
-
-
-class EditPane:
-    """
-
-    """
-
-    def __init__(self, parent, dbcontainer, querytoplevel, annotatetoplevel, mergetoplevel):
-        """
-
-        :param parent:
-        """
-
-        self.DBContainer = dbcontainer
-        self.QueryToplevel = querytoplevel
-        self.AnnotateToplevel = annotatetoplevel
-        self.MergeToplevel = mergetoplevel
-
-        self.__main = Frame()
-        parent.add(self.__main)
-        self.__menu_frame = Frame(self.__main, style='Menu.TFrame')
-        self.__merge_button_icon = _load_icon('GraphMerge')
-        self.__merge_button = Button(self.__menu_frame, image=self.__merge_button_icon,
-                                     command=lambda: self.MergeToplevel.pack(
-                                       [entry for entry in self.__property_table.selection()
-                                        if self.__property_table.item(entry)['values'][0] != 'merge'
-                                        and self.__property_table.item(entry)['values'][1] != 'edge']
-                                   ))
-        self.__query_button_icon = _load_icon('DataBaseQuery')
-        self.__query_button = Button(self.__menu_frame, image=self.__query_button_icon,
-                                     command=self.QueryToplevel.pack)
-        self.__annotate_button_icon = _load_icon('DataBaseAnnotate')
-        self.__annotate_button = Button(self.__menu_frame, image=self.__annotate_button_icon,
-                                        command=lambda: self.AnnotateToplevel.pack(
-                                          [entry for entry in self.__property_table.get_children()
-                                           if self.__property_table.item(entry)['values'][1] != 'edge']
-                                      ))
-        self.__property_table = _construct_table(self.__main, 'Edit', 'Edit.Treeview')
-
-        self.__property_table.configure(columns=['root', 'type'])
-        self.__property_table.heading('#0', text='Name')
-        self.__property_table.heading('root', text='Source')
-        self.__property_table.heading('type', text='Type')
-
-    def display_state(self, state):
-        """
-
-        :return:
-        """
-
-        if state == 'connected':
-
-            self.__merge_button.configure(state=NORMAL)
-            self.__query_button.configure(state=NORMAL)
-            self.__annotate_button.configure(state=NORMAL)
-
-        elif state == 'disconnected':
-
-            self.__merge_button.configure(state=DISABLED)
-            self.__query_button.configure(state=DISABLED)
-            self.__annotate_button.configure(state=DISABLED)
-
-        self.__display_properties()
-
-    def pack(self, px=5, py=5):
-        """
-
-        :param px:
-        :param py:
-        :return:
-        """
-
-        self.__menu_frame.pack(side='top', fill='x')
-        self.__merge_button.pack(side='left', padx=px, pady=py)
-        self.__query_button.pack(side='left', padx=px, pady=py)
-        self.__annotate_button.pack(side='left', padx=px, pady=py)
-
-    def __display_properties(self):
-        """
-
-        :return:
-        """
-
-        def insert(p, property_type):
-            """
-
-            :param p:
-            :param property_type:
-            :return:
-            """
-
-            try:
-
-                property_root, property_name = p.split(DATA_SEPARATOR)
-
-                self.__property_table.insert('', 'end',
-                                             iid=p,
-                                             text=property_name,
-                                             values=[property_root, property_type]
-                                             )
-
-            except IndexError:
-
-                self.__property_table.insert('', 'end',
-                                             iid=p,
-                                             text=p,
-                                             values=['Undefined', 'Undefined']
-                                             )
-
-        displayed = self.__property_table.get_children()
-        properties = self.DBContainer.DBProperties
-
-        for property_ in properties[0]:
-
-            if property_ not in displayed:
-
-                if property_ not in ['id']:
-
-                    insert(property_, VERTEX)
-
-        for property_ in properties[1]:
-
-            if property_ not in displayed:
-
-                if property_ not in ['src', 'tgt', 'source', 'target']:
-
-                    insert(property_, EDGE)
-
-        for property_ in displayed:
-
-            if property_ not in properties[0] and property_ not in properties[1]:
-
-                self.__property_table.delete(property_)
-
-
-class QueryToplevel:
-    """
-
-    """
-
-    def __init__(self, dbcontainer, threadmanager):
-        """
-
-        :param parent:
-        :param dbcontainer:
-        :param dbinterface:
-        """
-
-        self.DBContainer = dbcontainer
-        self.ThreadManager = threadmanager
-
-        self.__main = Toplevel()
-        self.__main.withdraw()
-        self.__main.protocol("WM_DELETE_WINDOW", self.__main.withdraw)
-        self.__title = 'BioNGraph - Query'
-        self.__main.title(self.__title)
-
-        self.__frame = Frame(self.__main)
-        self.__menu_frame = Frame(self.__frame, style='Menu.TFrame')
-        self.__query_text = Text(self.__frame, background='snow4', foreground='snow')
-        self.__run_button_icon = _load_icon('Run')
-        self.__run_button = Button(self.__menu_frame, image=self.__run_button_icon, command=self.__run_query)
-        self.__explain_button_icon = _load_icon('Explain')
-        self.__explain_button = Button(self.__menu_frame, image=self.__explain_button_icon, command=self.__explain_query)
-
-    def pack(self, px=5, py=5):
-
-        self.__main.deiconify()
-
-        self.__frame.pack(side='top', fill='both')
-        self.__menu_frame.pack(side='top', fill='x')
-        self.__run_button.pack(side='right', padx=px, pady=py)
-        self.__explain_button.pack(side='right', padx=px, pady=py)
-        self.__query_text.pack(side='bottom', fill='both')
-
-    def __get_query(self):
-
-        return self.__query_text.get('1.0', END).replace('\n', ' ').replace('\t', ' ').lower()
-
-    def __run_query(self):
-
-        query = self.__get_query()
-
-        if 'return' in query:
-
-            self.ThreadManager.stack_task(self.DBContainer.request_query_response, (query, ))
-
-        else:
-
-            self.ThreadManager.stack_task(self.DBContainer.DBInterface.db_query, (query, self.DBContainer.DBActiveKey))
-
-    def __explain_query(self):
-
-        query = self.__get_query()
-
-        def show_execution_plan(query, key):
-
-            execution_plan = self.DBContainer.DBInterface.db_explain(query, key)
-
-            _inform('Query',
-                    message='Cypher execution plan: \n\n' + execution_plan.decode('UTF-8'))
-
-        self.ThreadManager.stack_task(show_execution_plan, (query, self.DBContainer.DBActiveKey))
-
-
-class AnnotateToplevel:
-    """
-
-    """
-
-    def __init__(self, dbcontainer, threadmanager):
-        """
-
-        """
-
-        self.DBContainer = dbcontainer
-        self.ThreadManager = threadmanager
-
-        self.__main = Toplevel()
-        self.__main.withdraw()
-        self.__main.protocol("WM_DELETE_WINDOW", self.__main.withdraw)
-        self.__title = 'BioNGraph - Annotate'
-        self.__main.title(self.__title)
-
-        self.__frame = Frame(self.__main, style='Menu.TFrame')
-        self.__file_labelframe = Labelframe(self.__frame, text='Path', labelanchor='w')
-        self.__file_entry = Entry(self.__file_labelframe, state=DISABLED, justify='center')
-        self.__open_button_icon = _load_icon('Import')
-        self.__open_button = Button(self.__file_labelframe, image=self.__open_button_icon, command=self.__open)
-        self.__attribute_labelframe = Labelframe(self.__frame, text='Target Attribute ', labelanchor='w')
-        self.__attribute_entry = Combobox(self.__attribute_labelframe, justify='center', state='readonly')
-        self.__run_button_icon = _load_icon('Run')
-        self.__run_button = Button(self.__frame, image=self.__run_button_icon, command=self.__annotate)
-
-    def pack(self, selection, px=5, py=5):
-        """
-
-        :return:
-        """
-
-        if not selection:
-
-            messagebox.showinfo(self.__title, 'No valid attribute in selected database.')
-
-        else:
-
-            self.__main.deiconify()
-            self.__frame.pack(expand=True, fill='both')
-            self.__file_labelframe.pack(side='top', padx=px, pady=py, fill='x', expand=True)
-            self.__file_entry.pack(side='left', padx=px, pady=py, fill='x', expand=True)
-            self.__open_button.pack(side='right', padx=px, pady=py)
-            self.__attribute_labelframe.pack(side='top', padx=px, pady=py, fill='x', expand=True)
-            self.__attribute_entry.pack(side='left', padx=px, pady=py, fill='x', expand=True)
-            self.__run_button.pack(side='top', padx=px, pady=py)
-
-            self.__attribute_entry.configure(values=selection)
-
-    def __annotate(self):
-
-        def annotate_thread():
-
-            annotation = self.DBContainer.FileInterface.read_file(path=path, instruction=attribute)
-            self.DBContainer.DBInterface.db_annotate(annotation, self.DBContainer.DBActiveKey)
-
-        path = self.__file_entry.get()
-        attribute = self.__attribute_entry.get()
-
-        if not path:
-
-            _inform('Annotate', 'Please choose a path.')
-
-        elif not attribute:
-
-            _inform('Annotate', 'Please choose a target-attribute.')
-
-        else:
-
-            self.__file_entry.delete(0, END)
-            self.__attribute_entry.configure(values=None)
-            self.__main.withdraw()
-
-            self.ThreadManager.stack_task(annotate_thread, ())
-
-    def __open(self):
-
-        path = str(askopenfilename())
-
-        self.__file_entry.configure(state=NORMAL, width=len(path))
-        self.__file_entry.delete(0, END)
-        self.__file_entry.insert(END, path)
-        self.__file_entry.configure(state=DISABLED)
-
-
-class MergeToplevel:
-    """
-
-    """
-
-    def __init__(self, dbcontainer, threadmanager):
-        """
-
-        """
-
-        self.DBContainer = dbcontainer
-        self.ThreadManager = threadmanager
-
-        self.target_attribute_exists = False
-        self.source_attributes = []
-
-        self.main = Toplevel()
-        self.main.withdraw()
-        self.main.protocol("WM_DELETE_WINDOW", self.main.withdraw)
-        self.title = 'BioNGraph - Merge'
-        self.main.title(self.title)
-        self.frame = Frame(self.main, style='Menu.TFrame')
-        self.src_key_frame = Labelframe(self.frame, text='Source Graph ', labelanchor='w')
-        self.src_key_label = Label(self.src_key_frame)
-        self.tgt_key_frame = LabelFrame(self.frame, text='Target Graph', labelanchor='w')
-        self.tgt_key_entry = Combobox(self.tgt_key_frame, justify='center')
-        self.src_attr_frame = Labelframe(self.frame, text='Selected properties ', labelanchor='n')
-        self.src_attr_label = Label(self.src_attr_frame)
-        self.tgt_attr_frame = Labelframe(self.frame, text='Target Property ', labelanchor='w')
-        self.tgt_attr_entry = Entry(self.tgt_attr_frame)
-        self.run_button_icon = _load_icon('Run')
-        self.run_button = Button(self.frame, image=self.run_button_icon, command=self.__merge)
-
-    def pack(self, src_attributes, px=5, py=5):
-
-        if not self.DBContainer.DBActiveKey:
-
-            messagebox.showinfo(self.title, 'Please select a Graph to work on.')
-
-        elif not src_attributes:
-
-            messagebox.showinfo(self.title, 'Please select at least on attribute to merge.')
-
-        else:
-
-            self.frame.pack(expand=True, fill='both')
-            self.src_key_frame.grid(row=0, column=0, padx=2 * px, pady=2 * py)
-            self.src_key_label.pack(padx=px, pady=py)
-            self.src_key_label.configure(
-                text=self.DBContainer.DBActiveKey
-            )
-            self.src_attr_frame.grid(row=1, column=0, padx=2 * px, pady=2 * py)
-            self.src_attr_label.pack(padx=px, pady=py)
-            self.src_attr_label.configure(
-                text='\n'.join(src_attributes))
-            self.tgt_key_frame.grid(row=0, column=2, padx=2 * px, pady=2 * py)
-            self.tgt_key_entry.pack(padx=px, pady=py)
-            self.tgt_key_entry.configure(values=[entry for entry in self.DBContainer.DBKeys])
-            self.tgt_attr_frame.grid(row=1, column=2, padx=2 * px, pady=2 * py)
-            self.tgt_attr_entry.pack(padx=px, pady=py)
-
-            merge_attribute = set(property.split(DATA_SEPARATOR)[1]
-                                  for property in self.DBContainer.DBProperties[0]
-                                  if property.split(DATA_SEPARATOR)[0] == 'merge')
-
-            if merge_attribute:
-                self.target_attribute_exists = True
-                self.tgt_attr_entry.insert(END, merge_attribute.pop())
-                self.tgt_attr_entry.configure(state=DISABLED)
-            else:
-                self.target_attribute_exists = False
-                self.tgt_attr_entry.configure(state=NORMAL)
-
-            self.run_button.grid(row=2, column=1, pady=py)
-
-            self.source_attributes = src_attributes
-
-            self.main.deiconify()
-
-    def __merge(self):
-
-        target_attribute = 'merge' + DATA_SEPARATOR \
-                           + str(self.tgt_attr_entry.get()).replace('_', '').replace(' ', '')
-
-        target_graph = self.tgt_key_entry.get()
-
-        if not target_graph:
-
-            _inform('Merge', 'Please enter a target-graph key.')
-
-        elif not target_attribute.lstrip('merge' + DATA_SEPARATOR):
-
-            _inform('Merge', 'Please enter a target attribute.')
-
-        else:
-
-            self.main.withdraw()
-
-            self.source_attributes.insert(0, target_attribute)
-
-            self.ThreadManager.stack_task(self.DBContainer.DBInterface.db_merge,
-                                          (self.source_attributes,
-                                           self.DBContainer.DBActiveKey,
-                                           target_graph,
-                                           not self.target_attribute_exists)
-                                          )
+                menu.post(self.Main.winfo_pointerx(), self.Main.winfo_pointery())

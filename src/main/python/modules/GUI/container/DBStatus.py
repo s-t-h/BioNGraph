@@ -8,6 +8,7 @@ class DBStatusContainer:
         self.DBKeys = set()
         self.DBActiveKey = None
         self.DBProperties = ([], [])
+        self.UserSelection = []
         self.DBQuery = None
         self.DBStatus = {'connection': 'disconnected',
                          'query': ' '}

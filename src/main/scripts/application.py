@@ -1,18 +1,17 @@
-from modules.GUI.container.DBStatus import DBStatusContainer
-from modules.RedisInterface.FileInterface import FileInterface
-from modules.GUI.Manager import GUIManager, ThreadManager
-from modules.RedisInterface.DatabaseInterface import DatabaseInterface
+from modules.gui.container import DataBaseStatus
+from modules.gui.manager import GUIManager, ThreadManager
+from modules.RedisInterface.interface import DataBaseInterface, FileInterface
 from modules.RedisInterface.parser.GRAPHML import GRAPHMLParser
 from modules.RedisInterface.parser.JSON import JSONParser
 from modules.RedisInterface.parser.CSV import CSVParser
-from modules.GUI.Widgets import MainWidget
+from modules.gui.widgets import MasterWidget
 
 if __name__ == '__main__':
 
-    databaseInterface = DatabaseInterface()
+    databaseInterface = DataBaseInterface()
     fileInterface = FileInterface()
     threadManager = ThreadManager()
-    databaseStatusContainer = DBStatusContainer(databaseInterface, fileInterface)
+    databaseStatusContainer = DataBaseStatus(databaseInterface, fileInterface)
 
     graphml = GRAPHMLParser()
     json = JSONParser()
@@ -21,9 +20,8 @@ if __name__ == '__main__':
     fileInterface.add_parser(key='json', parser=json)
     fileInterface.add_parser(key='csv', parser=csv)
 
-    mainWidget = MainWidget(dbcontainer=databaseStatusContainer, threadmanager=threadManager)
+    mainWidget = MasterWidget(db_status=databaseStatusContainer, thread_manager=threadManager)
 
-    gui = GUIManager(dbcontainer=databaseStatusContainer, dbinterface=databaseInterface, threadmanager=threadManager,
-                     masterwidget=mainWidget)
+    gui = GUIManager(db_status=databaseStatusContainer, thread_manager=threadManager, master_widget=mainWidget)
 
     gui.Master.Main.mainloop()

@@ -1,19 +1,44 @@
-from functools import reduce
-from threading import enumerate
 from tkinter import *
 from tkinter import messagebox, simpledialog
 from tkinter.ttk import *
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from PIL import ImageTk, Image
-from modules.container.Tags import DATA_SEPARATOR, DISPLAY_SEPARATOR, MERGE_SEPARATOR, VERTEX, EDGE, ID, TARGET, SOURCE
+
+from functools import reduce
+from threading import enumerate
 from webbrowser import open_new
 from zipfile import ZipFile
 from copy import deepcopy
 
+from modules.container.Tags import DATA_SEPARATOR, VERTEX, EDGE
+from modules.gui.constants import ICON_PATH, ICON_STD_SIZE, TITLE_, TITLE, ABOUT_MENU_LABEL
+from modules.gui.container import DataBaseStatus
+from modules.gui.manager import ThreadManager
 
-def _load_icon(iconname, width=24, height=24):
 
-    icons = ZipFile('resources/icons.zip', 'r')
+def load_icon(iconname, width=ICON_STD_SIZE, height=ICON_STD_SIZE) -> ImageTk.PhotoImage:
+    """
+    Loads and returns an icon to use for widgets from the icons
+    resource path. Icons are stored as .png.
+
+    Parameters
+    ----------
+    iconname : str
+        The name of the source picture.
+
+    width : integer
+        The width of the displayed icon (default is 24).
+
+    height : integer
+        The height of the displayed icon (default is 24).
+
+    Returns
+    -------
+    ImageTk.PhotoImage
+        A PhotoImage object to use as Tkinter `image` option.
+    """
+
+    icons = ZipFile(ICON_PATH, 'r')
 
     return \
         ImageTk.PhotoImage(
@@ -23,73 +48,172 @@ def _load_icon(iconname, width=24, height=24):
         )
 
 
-def _construct_table(parent, style):
+def _construct_table(parent: Widget, style: str) -> Treeview:
+    """
+    Constructs a table-style widget with scrollbars.
+
+    Constructs a table-style widget: The widget consists of
+    an outer and inner `Frame` each packed with a `Scrollbar`.
+    The inner `Frame` is also packed with a `Treeview`
+
+    Parameters
+    ----------
+    parent : Widget
+        The parent widget to pack the constructed table to.
+
+    style : str
+        The style to use for the `Treeview`
+
+    Returns
+    -------
+    Treeview
+        A Tkinter `Treeview` widget used as table.
+    """
 
     outer_frame = Frame(parent)
     inner_frame = Frame(outer_frame)
-    table = Treeview(inner_frame, selectmode='extended', style=style)
-    hscrollbar = Scrollbar(outer_frame, orient='horizontal', command=table.xview)
-    vscrollbar = Scrollbar(outer_frame, orient='vertical', command=table.yview)
+    table = Treeview(inner_frame, selectmode=EXTENDED, style=style)
+    hscrollbar = Scrollbar(outer_frame, orient=HORIZONTAL, command=table.xview)
+    vscrollbar = Scrollbar(outer_frame, orient=VERTICAL, command=table.yview)
 
     table.config(xscrollcommand=hscrollbar.set, yscrollcommand=vscrollbar.set)
 
-    table.pack(fill='both', anchor='w', side='left', expand=True)
-    vscrollbar.pack(fill='y', anchor='e', side='right')
-    hscrollbar.pack(anchor='s', side='bottom', fill='x')
-    inner_frame.pack(expand=True, fill='both')
-    outer_frame.pack(side='bottom', expand=True, fill='both', pady=15, padx=10)
+    table.pack(fill=BOTH, anchor=W, side=LEFT, expand=True)
+    vscrollbar.pack(fill=Y, anchor=E, side=RIGHT)
+    hscrollbar.pack(anchor=S, side=BOTTOM, fill=X)
+    inner_frame.pack(expand=True, fill=BOTH)
+    outer_frame.pack(side=BOTTOM, expand=True, fill=BOTH, pady=15, padx=10)
 
     return table
 
 
-def _alarm(title, message):
+def alarm(title: str, message: str):
+    """
+    Invokes a TopLevel window displaying a message.
 
-    messagebox.showwarning(title='BioNGraph - ' + title,
+    The window uses a warning style.
+
+    Parameters
+    ----------
+    title : str
+        The title for the window.
+
+    message : str
+        The message to be displayed.
+    """
+
+    messagebox.showwarning(title=TITLE_ + title,
                            message=message)
 
 
-def _inform(title, message):
+def inform(title: str, message: str):
+    """
+    Invokes a TopLevel window displaying a message.
 
-    messagebox.showinfo(title='BioNGraph - ' + title,
+    The window uses a info style.
+
+    Parameters
+    ----------
+    title : str
+        The title for the window.
+
+    message : str
+        The message to be displayed.
+    """
+
+    messagebox.showinfo(title=TITLE_ + title,
                         message=message)
 
 
-class MainWidget:
+class MasterWidget:
+    """
+    Master widget to assemble sub-level widgets.
+
+    The `MasterWidget` invokes the construction of all sub-level widgets. It is called during
+    the start-up process of `App`.
+
+    Attributes
+    ----------
+    Main : Tk
+        The main `Tk` widgets to pack all sub-level widgets to.
+
+    __menubar : MenuBar
+        Menubar of the GUI. Implements connection and graph key handling. Implements a status indicator.
+
+    __importnotebook : ImportNotebook
+        Mid-level widget. Implements import of files.
+
+    __editnotebook : EditNotebook
+        Mid-level widget. Implements merge-functionality and a entry for cypher-syntax queries.
+
+    __exportnotebook : ExportNotebook
+        Mid-level widget. Implements export of files and display of queries.
+
+    Methods
+    -------
+    add_help_menu_option_url(url, label, image)
+        Adds a tab to the about menu to open an URL or HTML file.
+
+    pack()
+        Invokes the `pack()` method of all child widgets.
+
+    display_state()
+        Invokes the `display_state()` method of all child widgets.
     """
 
-    """
-
-    def __init__(self, dbcontainer, threadmanager):
+    def __init__(self, db_status: DataBaseStatus, thread_manager: ThreadManager):
         """
+        Initializes a new `MasterWidget` object.
 
+        Parameters
+        ----------
+        db_status : DataBaseStatus
+            Instance of `DataBaseStatus`. The instance is passed on to all child widgets.
+
+        thread_manager : ThreadManager
+            Instance of `ThreadManager`. The instance is passed on to all child widgets.
         """
 
         self.Main = Tk()
-        self.Main.title('BioNGraph')
+        self.Main.title(TITLE)
 
-        self.main_pane = Panedwindow(self.Main, orient='horizontal')
-        self.sub_pane = Panedwindow(self.main_pane, orient='vertical')
-        self.sub_frame_top = Frame(self.sub_pane)
-        self.sub_frame_bottom = Frame(self.sub_pane)
-        self.sub_frame_right = Frame(self.main_pane)
+        self.__main_pane = Panedwindow(self.Main, orient=HORIZONTAL)
+        self.__sub_pane = Panedwindow(self.__main_pane, orient=VERTICAL)
+        self.__sub_frame_top = Frame(self.__sub_pane)
+        self.__sub_frame_bottom = Frame(self.__sub_pane)
+        self.__sub_frame_right = Frame(self.__main_pane)
 
-        self.main_pane.add(self.sub_pane)
-        self.main_pane.add(self.sub_frame_right)
-        self.sub_pane.add(self.sub_frame_top)
-        self.sub_pane.add(self.sub_frame_bottom)
+        self.__main_pane.add(self.__sub_pane)
+        self.__main_pane.add(self.__sub_frame_right)
+        self.__sub_pane.add(self.__sub_frame_top)
+        self.__sub_pane.add(self.__sub_frame_bottom)
 
-        self.__menubar = MenuBar(self.Main, dbcontainer, threadmanager)
-        self.__importnotebook = ImportNotebook(self.sub_frame_top, dbcontainer, threadmanager)
-        self.__editnotebook = EditNotebook(self.sub_frame_bottom, dbcontainer, threadmanager)
-        self.__exportnotebook = ExportNotebook(self.sub_frame_right, dbcontainer, threadmanager)
+        self.__menubar = MenuBar(self.Main, db_status, thread_manager)
+        self.__importnotebook = ImportNotebook(self.__sub_frame_top, db_status, thread_manager)
+        self.__editnotebook = EditNotebook(self.__sub_frame_bottom, db_status, thread_manager)
+        self.__exportnotebook = ExportNotebook(self.__sub_frame_right, db_status, thread_manager)
 
         self.__main_menu = Menu(self.Main)
         self.__about_menu = Menu(self.__main_menu, tearoff=0)
-        self.__main_menu.add_cascade(label='About', menu=self.__about_menu)
+        self.__main_menu.add_cascade(label=ABOUT_MENU_LABEL, menu=self.__about_menu)
         self.__help_menu_index = 0
         self.Main.config(menu=self.__main_menu)
 
-    def add_help_menu_option_url(self, url, label='', image=None):
+    def add_about_menu_option_url(self, url: str, label: str = '', image: ImageTk.PhotoImage = None):
+        """
+        Adds a tab to the about menu to open an URL or HTML file.
+
+        Parameters
+        ----------
+        url : str
+            Specifies the path to the file/link to open.
+
+        label : str, optional
+            Specifies the text to be displayed(default is '').
+
+        image : ImageTk.PhotoImage, optional
+            Specifies the image to be displayed with the label (default is None).
+        """
 
         self.__about_menu.add_command(label=label, command=lambda: open_new(url))
 
@@ -100,16 +224,33 @@ class MainWidget:
         self.__help_menu_index += 1
 
     def pack(self):
+        """
+        Invokes the `pack()` method of all child widgets.
+
+        The `pack()` method is available for each class of `widgets`
+        and in turn invokes the `pack()` method for each of their child widgets.
+        `pack()` is called only once during start-up.
+        """
 
         self.__menubar.pack()
-
-        self.main_pane.pack(fill=BOTH, expand=True, side=BOTTOM)
-
+        self.__main_pane.pack(fill=BOTH, expand=True, side=BOTTOM)
         self.__importnotebook.pack()
         self.__editnotebook.pack()
         self.__exportnotebook.pack()
 
-    def display_state(self, state):
+    def display_state(self, state: str):
+        """
+        Invokes the `display_state()` method of all child widgets.
+
+        The `display_state()` method is available for each class of `widgets`
+        and in turn invokes the `display_state()` method for each of their child widgets.
+        `display_state()` is called repetitive by a `GUIManager` instance.
+
+        Parameters
+        ----------
+        state : str
+            The connection state of the linked `DataBaseStauts` object.
+        """
 
         self.__menubar.display_state(state)
         self.__importnotebook.display_state(state)
@@ -118,130 +259,285 @@ class MainWidget:
 
 
 class MenuBar:
+    """
+    Master widget to assemble `SuperMenu` widgets.
 
-    def __init__(self, parent, dbcontainer, threadmanager):
+    The `MenuBar` invokes the construction of all sub-level `SuperMenu` widgets. It is called during
+    the initialization of `MasterWidget`.
 
-        self.__main = Frame(parent, style='Menu.TFrame')
+    Attributes
+    ----------
+    __Main : Frame
+        A `Frame` widget to pack all child widgets to.
 
-        self.ClientMenu = ClientMenu(parent=self.__main,
-                                     dbcontainer=dbcontainer,
-                                     threadmanager=threadmanager)
+    __ClientMenu : ClientMenu
+        Implements functionality to connect/disconnect to a RedisServer.
 
-        self.DatabaseMenu = DatabaseMenu(parent=self.__main,
-                                         dbcontainer=dbcontainer,
-                                         threadmanager=threadmanager)
+    __DatabaseMenu : DatabaseMenu
+        Implements functionality to create/delete and select graph keys.
 
-        self.StatusMenu = StatusMenu(parent=self.__main,)
+    __StatusMenu : StatusMenu
+        Implements functionality to display connection status and running tasks.
+
+    Methods
+    -------
+    pack()
+        Invokes the `pack()` method of all child widgets.
+
+    display_state()
+        Invokes the `display_state()` method of all child widgets.
+    """
+
+    def __init__(self, parent: Tk, db_status: DataBaseStatus, thread_manager: ThreadManager):
+        """
+        Initializes a new `MenuBar` object.
+
+        Parameters
+        ----------
+        parent : Tk
+            Parent widget to pack `__Main` to.
+
+        db_status : DataBaseStatus
+            Instance of `DataBaseStatus`. The instance is passed on to all child widgets.
+
+        thread_manager : ThreadManager
+            Instance of `ThreadManager`. The instance is passed on to all child widgets.
+        """
+
+        self.__Main = Frame(parent, style='Menu.TFrame')
+
+        self.__ClientMenu = ClientMenu(parent=self.__Main,
+                                       db_status=db_status,
+                                       thread_manager=thread_manager)
+
+        self.__DatabaseMenu = DatabaseMenu(parent=self.__Main,
+                                           db_status=db_status,
+                                           thread_manager=thread_manager)
+
+        self.__StatusMenu = StatusMenu(parent=self.__Main,
+                                       db_status=db_status,
+                                       thread_manager=thread_manager)
 
     def pack(self):
+        """
+        Invokes the `pack()` method of all child widgets.
 
-        self.__main.pack(side=TOP, fill=X, expand=True)
+        The `pack()` method is available for each class of `widgets`
+        and in turn invokes the `pack()` method for each of their child widgets.
+        `pack()` is called only once during start-up.
+        """
 
-        self.ClientMenu.pack()
-        self.DatabaseMenu.pack()
-        self.StatusMenu.pack()
+        self.__Main.pack(side=TOP, fill=X, expand=True)
 
-    def display_state(self, state):
+        self.__ClientMenu.pack()
+        self.__DatabaseMenu.pack()
+        self.__StatusMenu.pack()
 
-        self.ClientMenu.display_state(state)
-        self.DatabaseMenu.display_state(state)
-        self.StatusMenu.display_state(state)
+    def display_state(self, state: str):
+        """
+        Invokes the `display_state()` method of all child widgets.
+
+        The `display_state()` method is available for each class of `widgets`
+        and in turn invokes the `display_state()` method for each of their child widgets.
+        `display_state()` is called repetitive by a `GUIManager` instance.
+
+        Parameters
+        ----------
+        state : str
+            The connection state of the linked `DataBaseStauts` object.
+        """
+
+        self.__ClientMenu.display_state(state)
+        self.__DatabaseMenu.display_state(state)
+        self.__StatusMenu.display_state(state)
 
 
 class SuperMenu:
+    """
+    Super class for menu widgets.
 
-    def __init__(self, parent, dbcontainer, threadmanager):
+    Attributes
+    ----------
+    __Main : Frame
+        A `Frame` widget to pack all child widgets to.
 
-        self.DB = dbcontainer
-        self.ThreadManager = threadmanager
+    __DB : DataBaseStatus
+        Used to update information from the database.
 
-        self.Main = Frame(parent)
+    __ThreadManager : ThreadManager
+        Used to stack GUI external tasks.
 
-        self.Widgets = {}
-        self.Icons = {}
+    __Widgets : dict
+        Grants access to all child widgets. Child widgets are stored with a key (str).
 
-    def display_state(self, state):
+    __Icons : dict
+        Grants access to all icons to use. Icons are stored with a key (str).
+
+    Methods
+    -------
+    pack()
+        Invokes the Tkinter `pack()` method for all widgets in `__Widgets`.
+
+    display_state()
+        Passes as no functionality is implemented on super class.
+
+    configure_state(state, *args)
+        Sets the state configuration of all widgets args to state.
+    """
+
+    def __init__(self, parent: Widget, db_status: DataBaseStatus, thread_manager: ThreadManager):
+        """
+        Initializes a new `SuperMenu` object.
+
+        Parameters
+        ----------
+        parent : Tk
+            Parent widget to pack `__Main` to.
+
+        db_status : DataBaseStatus
+            Instance of `DataBaseStatus`. Used to update information from the database.
+
+        thread_manager : ThreadManager
+            Instance of `ThreadManager`. Used to stack GUI external tasks.
+        """
+
+        self.__DB = db_status
+        self.__ThreadManager = thread_manager
+        self.__Main = Frame(parent)
+        self.__Widgets = {}
+        self.__Icons = {}
+
+    def display_state(self, state: str):
+        """
+        Passes as no functionality is implemented on super class.
+        """
 
         pass
 
-    def pack(self, side=LEFT):
+    def pack(self, side: str = LEFT):
+        """
+        Uses the Tkinter `pack()` manager to pack all widgets in `__Widgets` onto their parents.
 
-        self.Main.pack(side=side, padx=1, pady=1, fill=X, expand=True)
+        Parameter
+        ---------
+        side : str
+            The side configuration to use for `pack()` (default ist LEFT).
+        """
 
-        for widget in self.Widgets.values():
+        self.__Main.pack(side=side, padx=1, pady=1, fill=X, expand=True)
+
+        for widget in self.__Widgets.values():
 
             widget.pack(side=side, padx=5, pady=5)
 
-    def unpack(self):
+    def configure_state(self, state: str, *args: str):
+        """
+        Sets the state configuration of all widgets args to state.
 
-        self.Main.pack_forget()
+        Parameter
+        ---------
+        state : str
+            The state to set. Options are NORMAL (user can interact) and DISABLED (user can not interact).
 
-    def configure_state(self, state, *args):
+        args : str
+            Each arg is a widget key (str) to configure.
+        """
 
         for arg in args:
 
-            self.Widgets[arg].configure(state=state)
+            self.__Widgets[arg].configure(state=state)
 
 
 class ClientMenu(SuperMenu):
     """
-
+    Sub class of `SuperMenu`. Implements functionality to connect/disconnect to a RedisServer.
     """
 
-    def __init__(self, parent, dbcontainer, threadmanager):
+    def __init__(self, parent: Frame, db_status: DataBaseStatus, thread_manager: ThreadManager):
+        """
+        Initializes a new `Client` object.
+
+        The `ClientMenu` comprises a `Button` to connect/disconnect to a RedisServer and
+        entries for Port and Host of a RedisServer the user wants to establish a connection to.
+
+        Parameters
+        ----------
+        parent : Frame
+            Parent widget to pack `__Main` to.
+
+        db_status : DataBaseStatus
+            Instance of `DataBaseStatus`. Used to update information from the database.
+
+        thread_manager : ThreadManager
+            Instance of `ThreadManager`. Used to stack GUI external tasks.
         """
 
-        :param parent:
+        super().__init__(parent, db_status, thread_manager)
+
+        self.__Icons['ServerConnect'] = load_icon('ServerConnect')
+        self.__Icons['ServerDisconnect'] = load_icon('ServerDisconnect')
+
+        self.__Widgets['ConnectButton'] = Button(self.__Main, image=self.__Icons['ServerConnect'],
+                                                 command=self.__connect)
+        self.__Widgets['PortFrame'] = Labelframe(self.__Main, text='Port ', labelanchor=W)
+        self.__Widgets['PortEntry'] = Entry(self.__Widgets['PortFrame'], width=25, justify=CENTER)
+        self.__Widgets['HostFrame'] = Labelframe(self.__Main, text='Host ', labelanchor=W)
+        self.__Widgets['HostEntry'] = Entry(self.__Widgets['HostFrame'], width=25, justify=CENTER)
+
+    def display_state(self, state: str):
         """
+        Visualizes the state of `db_status` on child widgets.
 
-        super().__init__(parent, dbcontainer, threadmanager)
+        If a connection is established the Port and Host entries are set to DISABLED state
+        (users should not change them). This also indicates the current Port and Host.
+        The `Button` icon and command (to `__disconnect()`) are changed. If a connection is
+        quit this process is applied contrariwise.
 
-        self.Icons['ServerConnect'] = _load_icon('ServerConnect')
-        self.Icons['ServerDisconnect'] = _load_icon('ServerDisconnect')
-
-        self.Widgets['ConnectButton'] = Button(self.Main, image=self.Icons['ServerConnect'], command=self.__connect)
-        self.Widgets['PortFrame'] = Labelframe(self.Main, text='Port ', labelanchor=W)
-        self.Widgets['PortEntry'] = Entry(self.Widgets['PortFrame'], width=25, justify=CENTER)
-        self.Widgets['HostFrame'] = Labelframe(self.Main, text='Host ', labelanchor=W)
-        self.Widgets['HostEntry'] = Entry(self.Widgets['HostFrame'], width=25, justify=CENTER)
-
-    def display_state(self, state):
-        """
-
-        :param state:
-        :return:
+        Parameter
+        ---------
+        state : str
+            The connection state of `db_status`.
         """
 
         if state == 'connected':
 
-            self.Widgets['ConnectButton'].configure(image=self.Icons['ServerDisconnect'], command=self.__disconnect)
+            self.__Widgets['ConnectButton'].configure(image=self.__Icons['ServerDisconnect'], command=self.__disconnect)
 
             self.configure_state(DISABLED, 'PortEntry', 'HostEntry')
 
         elif state == 'disconnected':
 
-            self.Widgets['ConnectButton'].configure(image=self.Icons['ServerConnect'], command=self.__connect)
+            self.__Widgets['ConnectButton'].configure(image=self.__Icons['ServerConnect'], command=self.__connect)
 
             self.configure_state(NORMAL, 'PortEntry', 'HostEntry')
 
     def __connect(self):
         """
+        Stacks a connect task.
 
-        :return:
+        The Port and Host entries values are collected and used to request a
+        connection with a RedisServer (`client_connect()`).
         """
 
-        host = self.Widgets['HostEntry'].get()
-        port = self.Widgets['PortEntry'].get()
+        # TODO: Implement a try/except block to catch bad user input.
+        # ALERT: Entering bad input, e.g. characters to the port entry, will break the application.
 
-        self.ThreadManager.stack_task(self.DB.DBInterface.client_connect, (host, port))
+        host = self.__Widgets['HostEntry'].get()
+        port = self.__Widgets['PortEntry'].get()
+
+        self.__ThreadManager.stack_task(self.__DB.DBInterface.client_connect, (host, port))
 
     def __disconnect(self):
         """
+        Stack a disconnect task.
 
-        :return:
+        Request the disconnection from a RedisServer (`client_disconnect()`)
         """
 
-        self.ThreadManager.stack_task(self.DB.DBInterface.client_disconnect, ())
+        self.__ThreadManager.stack_task(self.__DB.DBInterface.client_disconnect, ())
+
+
+# TODO: Create Doc!
 
 
 class DatabaseMenu(SuperMenu):
@@ -249,27 +545,27 @@ class DatabaseMenu(SuperMenu):
 
     """
 
-    def __init__(self, parent, dbcontainer, threadmanager):
+    def __init__(self, parent, db_status, thread_manager):
         """
 
         :param parent:
         """
 
-        super().__init__(parent, dbcontainer, threadmanager)
+        super().__init__(parent, db_status, thread_manager)
 
-        self.Icons['DatabaseDelete'] = _load_icon('DataBaseDelete')
-        self.Icons['DatabaseBackup'] = _load_icon('DataBaseBackup')
+        self.__Icons['DatabaseDelete'] = load_icon('DataBaseDelete')
+        self.__Icons['DatabaseBackup'] = load_icon('DataBaseBackup')
 
-        self.Widgets['Delete'] = Button(self.Main, image=self.Icons['DatabaseDelete'], command=self.__delete_key)
-        self.Widgets['Save'] = Button(self.Main, image=self.Icons['DatabaseBackup'], command=self.__save_db)
-        self.Widgets['KeyFrame'] = Labelframe(self.Main, text='Graph ', labelanchor=W)
-        self.Widgets['KeyEntry'] = Combobox(self.Widgets['KeyFrame'], width=23, justify=CENTER)
+        self.__Widgets['Delete'] = Button(self.__Main, image=self.__Icons['DatabaseDelete'], command=self.__delete_key)
+        self.__Widgets['Save'] = Button(self.__Main, image=self.__Icons['DatabaseBackup'], command=self.__save_db)
+        self.__Widgets['KeyFrame'] = Labelframe(self.__Main, text='Graph ', labelanchor=W)
+        self.__Widgets['KeyEntry'] = Combobox(self.__Widgets['KeyFrame'], width=23, justify=CENTER)
 
         for binder in [('<<ComboboxSelected>>', self.__set_key),
                        ('<Return>', self.__add_key),
                        ('<FocusOut>', self.__reset_key)]:
 
-            self.Widgets['KeyEntry'].bind(binder[0], binder[1])
+            self.__Widgets['KeyEntry'].bind(binder[0], binder[1])
 
     def display_state(self, state):
         """
@@ -286,7 +582,7 @@ class DatabaseMenu(SuperMenu):
 
             self.configure_state(DISABLED, 'Delete', 'Save', 'KeyEntry')
 
-        self.Widgets['KeyEntry'].configure(values=list(self.DB.DBKeys))
+        self.__Widgets['KeyEntry'].configure(values=list(self.__DB.DBKeys))
 
     def __add_key(self, event):
         """
@@ -295,11 +591,11 @@ class DatabaseMenu(SuperMenu):
         :return:
         """
 
-        self.DB.add_key(
-            self.Widgets['KeyEntry'].get().replace(' ', '')
+        self.__DB.add_key(
+            self.__Widgets['KeyEntry'].get().replace(' ', '')
         )
 
-        self.Widgets['KeyEntry'].delete(0, END)
+        self.__Widgets['KeyEntry'].delete(0, END)
 
     def __delete_key(self):
         """
@@ -310,9 +606,9 @@ class DatabaseMenu(SuperMenu):
         if messagebox.askokcancel('Delete Key',
                                   'The deletion of a key will irretrievably delete any data associated with this key.'):
 
-            self.Widgets['KeyEntry'].delete(0, END)
+            self.__Widgets['KeyEntry'].delete(0, END)
 
-            self.ThreadManager.stack_task(self.DB.delete_key, ())
+            self.__ThreadManager.stack_task(self.__DB.delete_key, ())
 
     def __set_key(self, event):
         """
@@ -320,7 +616,7 @@ class DatabaseMenu(SuperMenu):
         :return:
         """
 
-        self.DB.shift_key(self.Widgets['KeyEntry'].get())
+        self.__DB.shift_key(self.__Widgets['KeyEntry'].get())
 
     def __reset_key(self, event):
         """
@@ -331,8 +627,8 @@ class DatabaseMenu(SuperMenu):
 
         try:
 
-            self.Widgets['KeyEntry'].delete(0, END)
-            self.Widgets['KeyEntry'].insert(END, self.DB.DBActiveKey)
+            self.__Widgets['KeyEntry'].delete(0, END)
+            self.__Widgets['KeyEntry'].insert(END, self.__DB.DBActiveKey)
 
         except TclError:
 
@@ -348,27 +644,27 @@ class DatabaseMenu(SuperMenu):
         :return:
         """
 
-        self.ThreadManager.stack_task(self.DB.DBInterface.db_save, ())
+        self.__ThreadManager.stack_task(self.__DB.DBInterface.db_save, ())
 
 
 class StatusMenu(SuperMenu):
 
-    def __init__(self, parent):
+    def __init__(self, parent, db_status, thread_manager):
         """
 
         :param parent:
         """
 
-        super().__init__(parent, None, None)
+        super().__init__(parent, db_status, thread_manager)
 
-        self.Icons['Connected'] = _load_icon('Connected')
-        self.Icons['Disconnected'] = _load_icon('Disconnected')
-        self.Icons['Thread'] = [_load_icon('Thread' + str(index)) for index in range(1, 9)]
+        self.__Icons['Connected'] = load_icon('Connected')
+        self.__Icons['Disconnected'] = load_icon('Disconnected')
+        self.__Icons['Thread'] = [load_icon('Thread' + str(index)) for index in range(1, 9)]
 
         self.__thread_indicator_index = 0
 
-        self.Widgets['Status'] = Label(self.Main, image=self.Icons['Disconnected'])
-        self.Widgets['Thread'] = Label(self.Main, image=None)
+        self.__Widgets['Status'] = Label(self.__Main, image=self.__Icons['Disconnected'])
+        self.__Widgets['Thread'] = Label(self.__Main, image=None)
 
     def display_state(self, state):
         """
@@ -379,11 +675,11 @@ class StatusMenu(SuperMenu):
 
         if state == 'connected':
 
-            self.Widgets['Status'].configure(image=self.Icons['Connected'])
+            self.__Widgets['Status'].configure(image=self.__Icons['Connected'])
 
         elif state == 'disconnected':
 
-            self.Widgets['Status'].configure(image=self.Icons['Disconnected'])
+            self.__Widgets['Status'].configure(image=self.__Icons['Disconnected'])
 
         self.__display_running_threads()
 
@@ -399,14 +695,14 @@ class StatusMenu(SuperMenu):
 
         if len(enumerate()) > 2:
 
-            self.Widgets['Thread'].configure(image=self.Icons['Thread'][self.__thread_indicator_index])
+            self.__Widgets['Thread'].configure(image=self.__Icons['Thread'][self.__thread_indicator_index])
 
             self.__thread_indicator_index += 1
             self.__thread_indicator_index %= 8
 
         else:
 
-            self.Widgets['Thread'].configure(image='')
+            self.__Widgets['Thread'].configure(image='')
 
 
 class ImportNotebook:
@@ -475,8 +771,8 @@ class SuperImport(SuperTab):
 
         super().__init__(parent, tab_name, dbcontainer, threadmanager)
 
-        self.Icons['Import'] = _load_icon('Import')
-        self.Icons['Upload'] = _load_icon('Upload')
+        self.Icons['Import'] = load_icon('Import')
+        self.Icons['Upload'] = load_icon('Upload')
 
         self.Container = {'In': {}, 'Out': []}
 
@@ -496,7 +792,7 @@ class SuperImport(SuperTab):
 
         if not self.DB.DBActiveKey:
 
-            _inform('Import', 'Please choose a Graph to work on first.')
+            inform('Import', 'Please choose a Graph to work on first.')
 
         else:
 
@@ -512,7 +808,7 @@ class SuperImport(SuperTab):
 
         if not self.DB.DBActiveKey:
 
-            _inform('Upload', 'Please select a Graph to work on first.')
+            inform('Upload', 'Please select a Graph to work on first.')
 
         else:
 
@@ -678,11 +974,11 @@ class AnnotationTab(SuperImport):
 
             if not target_property:
 
-                _inform('Annotation', 'Please choose a target-property.')
+                inform('Annotation', 'Please choose a target-property.')
 
             elif not map_property:
 
-                _inform('Annotation', 'Please choose a property to map the chosen target-property.')
+                inform('Annotation', 'Please choose a property to map the chosen target-property.')
 
             else:
 
@@ -874,7 +1170,7 @@ class SuperEdit(SuperTab):
 
         super().__init__(parent, tab_name, dbcontainer, threadmanager)
 
-        self.Icons['Run'] = _load_icon('Run')
+        self.Icons['Run'] = load_icon('Run')
 
         self.Widgets['Menu'] = Frame(self.Main, style='Menu.TFrame')
         self.Widgets['Run'] = Button(self.Widgets['Menu'], image=self.Icons['Run'], command=self.run)
@@ -911,7 +1207,7 @@ class QueryTab(SuperEdit):
 
         super().__init__(parent, 'Query', dbcontainer, threadmanager)
 
-        self.Icons['Explain'] = _load_icon('Explain')
+        self.Icons['Explain'] = load_icon('Explain')
 
         self.Widgets['Explain'] = Button(self.Widgets['Menu'], image=self.Icons['Explain'], command=self.__explain_query)
         self.Widgets['Text'] = Text(self.Main, background='snow4', foreground='snow')
@@ -920,7 +1216,7 @@ class QueryTab(SuperEdit):
 
         if not self.DB.DBActiveKey:
 
-            _inform('Query', 'Please select a Graph to work on first.')
+            inform('Query', 'Please select a Graph to work on first.')
 
         else:
 
@@ -963,8 +1259,8 @@ class QueryTab(SuperEdit):
 
             execution_plan = self.DB.DBInterface.db_explain(query, key)
 
-            _inform('Query',
-                    message='Cypher execution plan: \n\n' + execution_plan.decode('UTF-8'))
+            inform('Query',
+                   message='Cypher execution plan: \n\n' + execution_plan.decode('UTF-8'))
 
         self.ThreadManager.stack_task(show_execution_plan, (query, self.DB.DBActiveKey))
 
@@ -990,11 +1286,11 @@ class MergeTab(SuperEdit):
 
         if not self.DB.DBActiveKey:
 
-            _inform('Merge', 'Please select a Graph to work on first.')
+            inform('Merge', 'Please select a Graph to work on first.')
 
         elif not self.DB.UserSelection:
 
-            _inform('Merge', 'Please select at least on attribute to merge.')
+            inform('Merge', 'Please select at least on attribute to merge.')
 
         else:
 
@@ -1005,11 +1301,11 @@ class MergeTab(SuperEdit):
 
             if not target_graph:
 
-                _inform('Merge', 'Please enter a target-graph key.')
+                inform('Merge', 'Please enter a target-graph key.')
 
             elif not target_attribute.lstrip('merge' + DATA_SEPARATOR):
 
-                _inform('Merge', 'Please enter a target attribute.')
+                inform('Merge', 'Please enter a target attribute.')
 
             else:
 
@@ -1107,7 +1403,7 @@ class TableTab(SuperTab):
 
         super().__init__(parent, 'Table', dbcontainer, threadmanager)
 
-        self.Icons['Export'] = _load_icon('Export')
+        self.Icons['Export'] = load_icon('Export')
 
         self.Widgets['Menu'] = Frame(self.Main, style='Menu.TFrame')
         self.Widgets['Export'] = Button(self.Widgets['Menu'], image=self.Icons['Export'], command=self.__export)
@@ -1156,7 +1452,7 @@ class TableTab(SuperTab):
 
         if not self.DB.DBQuery:
 
-            _inform('Export', 'No query to export was found.')
+            inform('Export', 'No query to export was found.')
 
         else:
 

@@ -1,7 +1,7 @@
 import csv
 
 from modules.RedisInterface.parser.Parser import Parser
-from modules.container.Tags import DATA_SEPARATOR, TARGET, SOURCE, ID
+from modules.old.Tags import DATA_SEPARATOR, TARGET, SOURCE, ID
 from modules.RedisInterface.Exceptions import FileInterfaceParserException
 
 

@@ -1,4 +1,3 @@
-from modules.RedisInterface.interface import DataBaseInterface, FileInterface
 from modules.gui.constants import CONNECTION_STATUS, DISCONNECTED, QUERY_STATUS, NO_QUERY, CONNECTED, ACTIVE
 
 
@@ -55,7 +54,7 @@ class DataBaseStatus:
         Sends a query-response request to the database.
     """
 
-    def __init__(self, db_interface: DataBaseInterface, file_interface: FileInterface):
+    def __init__(self, db_interface: 'DataBaseInterface', file_interface: 'FileInterface'):
         """
         Initializes a new `DataBaseStatus` object.
 

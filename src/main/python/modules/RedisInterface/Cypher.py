@@ -1,4 +1,4 @@
-from modules.container.Tags import CREATE, VERTEX, SOURCE, TARGET, ID, EDGE, MATCH, WHERE, AND, NULL, NOT, IS, \
+from modules.old.Tags import CREATE, VERTEX, SOURCE, TARGET, ID, EDGE, MATCH, WHERE, AND, NULL, NOT, IS, \
     RETURN, OR, DELETE, SET, DATA_SEPARATOR
 
 

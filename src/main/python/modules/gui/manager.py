@@ -51,7 +51,7 @@ class GUIManager:
                                               image=self.__repository_icon)
         self.Master.add_about_menu_option_url(BROWSER_FILE_TAG + realpath(USER_GUIDE_PATH),
                                               label=USER_GUIDE_LABEL,
-                                              mage=self.__userguide_icon)
+                                              image=self.__userguide_icon)
 
         self.Master.pack()
 
@@ -133,7 +133,7 @@ class GUIManager:
                 sleep(CONTAINER_UPDATE_INTERVAL)
 
         update_thread = Thread(target=threaded_state_update,
-                               args=(self.__DB,))
+                               args=())
 
         update_thread.daemon = True
 
@@ -188,7 +188,7 @@ class ThreadManager:
 
             pass
 
-    def stack_task(self, target: function, arg_tuple: tuple):
+    def stack_task(self, target, arg_tuple: tuple):
         """
         Puts a new task on the queue.
 
@@ -197,7 +197,7 @@ class ThreadManager:
 
         Parameters
         ----------
-        target : function
+        target
             The target function to execute.
 
         arg_tuple : tuple
@@ -209,7 +209,7 @@ class ThreadManager:
         self.__TaskQueue.put((target, arg_tuple))
 
     @staticmethod
-    def __catch_exceptions(target: function, arg_tuple: tuple):
+    def __catch_exceptions(target, arg_tuple: tuple):
         """
         Catches an exception raised in a thread.
 
@@ -219,7 +219,7 @@ class ThreadManager:
 
         Parameters
         ----------
-        target : function
+        target
             The target function to execute.
 
         arg_tuple : tuple

@@ -10,10 +10,8 @@ from webbrowser import open_new
 from zipfile import ZipFile
 from copy import deepcopy
 
-from modules.container.Tags import DATA_SEPARATOR, VERTEX, EDGE
+from modules.old.Tags import DATA_SEPARATOR, VERTEX, EDGE
 from modules.gui.constants import ICON_PATH, ICON_STD_SIZE, TITLE_, TITLE, ABOUT_MENU_LABEL
-from modules.gui.container import DataBaseStatus
-from modules.gui.manager import ThreadManager
 
 
 def load_icon(iconname, width=ICON_STD_SIZE, height=ICON_STD_SIZE) -> ImageTk.PhotoImage:
@@ -161,7 +159,7 @@ class MasterWidget:
         Invokes the `display_state()` method of all child widgets.
     """
 
-    def __init__(self, db_status: DataBaseStatus, thread_manager: ThreadManager):
+    def __init__(self, db_status: 'DataBaseStatus', thread_manager: 'ThreadManager'):
         """
         Initializes a new `MasterWidget` object.
 
@@ -288,7 +286,7 @@ class MenuBar:
         Invokes the `display_state()` method of all child widgets.
     """
 
-    def __init__(self, parent: Tk, db_status: DataBaseStatus, thread_manager: ThreadManager):
+    def __init__(self, parent: Tk, db_status: 'DataBaseStatus', thread_manager: 'ThreadManager'):
         """
         Initializes a new `MenuBar` object.
 
@@ -358,19 +356,19 @@ class SuperMenu:
 
     Attributes
     ----------
-    __Main : Frame
+    _Main : Frame
         A `Frame` widget to pack all child widgets to.
 
-    __DB : DataBaseStatus
+    _DB : DataBaseStatus
         Used to update information from the database.
 
-    __ThreadManager : ThreadManager
+    _ThreadManager : ThreadManager
         Used to stack GUI external tasks.
 
-    __Widgets : dict
+    _Widgets : dict
         Grants access to all child widgets. Child widgets are stored with a key (str).
 
-    __Icons : dict
+    _Icons : dict
         Grants access to all icons to use. Icons are stored with a key (str).
 
     Methods
@@ -385,7 +383,7 @@ class SuperMenu:
         Sets the state configuration of all widgets args to state.
     """
 
-    def __init__(self, parent: Widget, db_status: DataBaseStatus, thread_manager: ThreadManager):
+    def __init__(self, parent: Widget, db_status: 'DataBaseStatus', thread_manager: 'ThreadManager'):
         """
         Initializes a new `SuperMenu` object.
 
@@ -401,11 +399,11 @@ class SuperMenu:
             Instance of `ThreadManager`. Used to stack GUI external tasks.
         """
 
-        self.__DB = db_status
-        self.__ThreadManager = thread_manager
-        self.__Main = Frame(parent)
-        self.__Widgets = {}
-        self.__Icons = {}
+        self._DB = db_status
+        self._ThreadManager = thread_manager
+        self._Main = Frame(parent)
+        self._Widgets = {}
+        self._Icons = {}
 
     def display_state(self, state: str):
         """
@@ -424,9 +422,9 @@ class SuperMenu:
             The side configuration to use for `pack()` (default ist LEFT).
         """
 
-        self.__Main.pack(side=side, padx=1, pady=1, fill=X, expand=True)
+        self._Main.pack(side=side, padx=1, pady=1, fill=X, expand=True)
 
-        for widget in self.__Widgets.values():
+        for widget in self._Widgets.values():
 
             widget.pack(side=side, padx=5, pady=5)
 
@@ -445,7 +443,7 @@ class SuperMenu:
 
         for arg in args:
 
-            self.__Widgets[arg].configure(state=state)
+            self._Widgets[arg].configure(state=state)
 
 
 class ClientMenu(SuperMenu):
@@ -453,7 +451,7 @@ class ClientMenu(SuperMenu):
     Sub class of `SuperMenu`. Implements functionality to connect/disconnect to a RedisServer.
     """
 
-    def __init__(self, parent: Frame, db_status: DataBaseStatus, thread_manager: ThreadManager):
+    def __init__(self, parent: Frame, db_status: 'DataBaseStatus', thread_manager: 'ThreadManager'):
         """
         Initializes a new `Client` object.
 
@@ -474,15 +472,15 @@ class ClientMenu(SuperMenu):
 
         super().__init__(parent, db_status, thread_manager)
 
-        self.__Icons['ServerConnect'] = load_icon('ServerConnect')
-        self.__Icons['ServerDisconnect'] = load_icon('ServerDisconnect')
+        self._Icons['ServerConnect'] = load_icon('ServerConnect')
+        self._Icons['ServerDisconnect'] = load_icon('ServerDisconnect')
 
-        self.__Widgets['ConnectButton'] = Button(self.__Main, image=self.__Icons['ServerConnect'],
-                                                 command=self.__connect)
-        self.__Widgets['PortFrame'] = Labelframe(self.__Main, text='Port ', labelanchor=W)
-        self.__Widgets['PortEntry'] = Entry(self.__Widgets['PortFrame'], width=25, justify=CENTER)
-        self.__Widgets['HostFrame'] = Labelframe(self.__Main, text='Host ', labelanchor=W)
-        self.__Widgets['HostEntry'] = Entry(self.__Widgets['HostFrame'], width=25, justify=CENTER)
+        self._Widgets['ConnectButton'] = Button(self._Main, image=self._Icons['ServerConnect'],
+                                                command=self.__connect)
+        self._Widgets['PortFrame'] = Labelframe(self._Main, text='Port ', labelanchor=W)
+        self._Widgets['PortEntry'] = Entry(self._Widgets['PortFrame'], width=25, justify=CENTER)
+        self._Widgets['HostFrame'] = Labelframe(self._Main, text='Host ', labelanchor=W)
+        self._Widgets['HostEntry'] = Entry(self._Widgets['HostFrame'], width=25, justify=CENTER)
 
     def display_state(self, state: str):
         """
@@ -501,13 +499,13 @@ class ClientMenu(SuperMenu):
 
         if state == 'connected':
 
-            self.__Widgets['ConnectButton'].configure(image=self.__Icons['ServerDisconnect'], command=self.__disconnect)
+            self._Widgets['ConnectButton'].configure(image=self._Icons['ServerDisconnect'], command=self.__disconnect)
 
             self.configure_state(DISABLED, 'PortEntry', 'HostEntry')
 
         elif state == 'disconnected':
 
-            self.__Widgets['ConnectButton'].configure(image=self.__Icons['ServerConnect'], command=self.__connect)
+            self._Widgets['ConnectButton'].configure(image=self._Icons['ServerConnect'], command=self.__connect)
 
             self.configure_state(NORMAL, 'PortEntry', 'HostEntry')
 
@@ -522,10 +520,10 @@ class ClientMenu(SuperMenu):
         # TODO: Implement a try/except block to catch bad user input.
         # ALERT: Entering bad input, e.g. characters to the port entry, will break the application.
 
-        host = self.__Widgets['HostEntry'].get()
-        port = self.__Widgets['PortEntry'].get()
+        host = self._Widgets['HostEntry'].get()
+        port = self._Widgets['PortEntry'].get()
 
-        self.__ThreadManager.stack_task(self.__DB.DBInterface.client_connect, (host, port))
+        self._ThreadManager.stack_task(self._DB.DBInterface.client_connect, (host, port))
 
     def __disconnect(self):
         """
@@ -534,7 +532,7 @@ class ClientMenu(SuperMenu):
         Request the disconnection from a RedisServer (`client_disconnect()`)
         """
 
-        self.__ThreadManager.stack_task(self.__DB.DBInterface.client_disconnect, ())
+        self._ThreadManager.stack_task(self._DB.DBInterface.client_disconnect, ())
 
 
 # TODO: Create Doc!
@@ -553,19 +551,19 @@ class DatabaseMenu(SuperMenu):
 
         super().__init__(parent, db_status, thread_manager)
 
-        self.__Icons['DatabaseDelete'] = load_icon('DataBaseDelete')
-        self.__Icons['DatabaseBackup'] = load_icon('DataBaseBackup')
+        self._Icons['DatabaseDelete'] = load_icon('DataBaseDelete')
+        self._Icons['DatabaseBackup'] = load_icon('DataBaseBackup')
 
-        self.__Widgets['Delete'] = Button(self.__Main, image=self.__Icons['DatabaseDelete'], command=self.__delete_key)
-        self.__Widgets['Save'] = Button(self.__Main, image=self.__Icons['DatabaseBackup'], command=self.__save_db)
-        self.__Widgets['KeyFrame'] = Labelframe(self.__Main, text='Graph ', labelanchor=W)
-        self.__Widgets['KeyEntry'] = Combobox(self.__Widgets['KeyFrame'], width=23, justify=CENTER)
+        self._Widgets['Delete'] = Button(self._Main, image=self._Icons['DatabaseDelete'], command=self.__delete_key)
+        self._Widgets['Save'] = Button(self._Main, image=self._Icons['DatabaseBackup'], command=self.__save_db)
+        self._Widgets['KeyFrame'] = Labelframe(self._Main, text='Graph ', labelanchor=W)
+        self._Widgets['KeyEntry'] = Combobox(self._Widgets['KeyFrame'], width=23, justify=CENTER)
 
         for binder in [('<<ComboboxSelected>>', self.__set_key),
                        ('<Return>', self.__add_key),
                        ('<FocusOut>', self.__reset_key)]:
 
-            self.__Widgets['KeyEntry'].bind(binder[0], binder[1])
+            self._Widgets['KeyEntry'].bind(binder[0], binder[1])
 
     def display_state(self, state):
         """
@@ -582,7 +580,7 @@ class DatabaseMenu(SuperMenu):
 
             self.configure_state(DISABLED, 'Delete', 'Save', 'KeyEntry')
 
-        self.__Widgets['KeyEntry'].configure(values=list(self.__DB.DBKeys))
+        self._Widgets['KeyEntry'].configure(values=list(self._DB.DBKeys))
 
     def __add_key(self, event):
         """
@@ -591,11 +589,11 @@ class DatabaseMenu(SuperMenu):
         :return:
         """
 
-        self.__DB.add_key(
-            self.__Widgets['KeyEntry'].get().replace(' ', '')
+        self._DB.add_key(
+            self._Widgets['KeyEntry'].get().replace(' ', '')
         )
 
-        self.__Widgets['KeyEntry'].delete(0, END)
+        self._Widgets['KeyEntry'].delete(0, END)
 
     def __delete_key(self):
         """
@@ -606,9 +604,9 @@ class DatabaseMenu(SuperMenu):
         if messagebox.askokcancel('Delete Key',
                                   'The deletion of a key will irretrievably delete any data associated with this key.'):
 
-            self.__Widgets['KeyEntry'].delete(0, END)
+            self._Widgets['KeyEntry'].delete(0, END)
 
-            self.__ThreadManager.stack_task(self.__DB.delete_key, ())
+            self._ThreadManager.stack_task(self._DB.delete_key, ())
 
     def __set_key(self, event):
         """
@@ -616,7 +614,7 @@ class DatabaseMenu(SuperMenu):
         :return:
         """
 
-        self.__DB.shift_key(self.__Widgets['KeyEntry'].get())
+        self._DB.shift_key(self._Widgets['KeyEntry'].get())
 
     def __reset_key(self, event):
         """
@@ -627,8 +625,8 @@ class DatabaseMenu(SuperMenu):
 
         try:
 
-            self.__Widgets['KeyEntry'].delete(0, END)
-            self.__Widgets['KeyEntry'].insert(END, self.__DB.DBActiveKey)
+            self._Widgets['KeyEntry'].delete(0, END)
+            self._Widgets['KeyEntry'].insert(END, self._DB.DBActiveKey)
 
         except TclError:
 
@@ -644,7 +642,7 @@ class DatabaseMenu(SuperMenu):
         :return:
         """
 
-        self.__ThreadManager.stack_task(self.__DB.DBInterface.db_save, ())
+        self._ThreadManager.stack_task(self._DB.DBInterface.db_save, ())
 
 
 class StatusMenu(SuperMenu):
@@ -657,14 +655,14 @@ class StatusMenu(SuperMenu):
 
         super().__init__(parent, db_status, thread_manager)
 
-        self.__Icons['Connected'] = load_icon('Connected')
-        self.__Icons['Disconnected'] = load_icon('Disconnected')
-        self.__Icons['Thread'] = [load_icon('Thread' + str(index)) for index in range(1, 9)]
+        self._Icons['Connected'] = load_icon('Connected')
+        self._Icons['Disconnected'] = load_icon('Disconnected')
+        self._Icons['Thread'] = [load_icon('Thread' + str(index)) for index in range(1, 9)]
 
         self.__thread_indicator_index = 0
 
-        self.__Widgets['Status'] = Label(self.__Main, image=self.__Icons['Disconnected'])
-        self.__Widgets['Thread'] = Label(self.__Main, image=None)
+        self._Widgets['Status'] = Label(self._Main, image=self._Icons['Disconnected'])
+        self._Widgets['Thread'] = Label(self._Main, image=None)
 
     def display_state(self, state):
         """
@@ -675,11 +673,11 @@ class StatusMenu(SuperMenu):
 
         if state == 'connected':
 
-            self.__Widgets['Status'].configure(image=self.__Icons['Connected'])
+            self._Widgets['Status'].configure(image=self._Icons['Connected'])
 
         elif state == 'disconnected':
 
-            self.__Widgets['Status'].configure(image=self.__Icons['Disconnected'])
+            self._Widgets['Status'].configure(image=self._Icons['Disconnected'])
 
         self.__display_running_threads()
 
@@ -695,14 +693,14 @@ class StatusMenu(SuperMenu):
 
         if len(enumerate()) > 2:
 
-            self.__Widgets['Thread'].configure(image=self.__Icons['Thread'][self.__thread_indicator_index])
+            self._Widgets['Thread'].configure(image=self._Icons['Thread'][self.__thread_indicator_index])
 
             self.__thread_indicator_index += 1
             self.__thread_indicator_index %= 8
 
         else:
 
-            self.__Widgets['Thread'].configure(image='')
+            self._Widgets['Thread'].configure(image='')
 
 
 class ImportNotebook:

@@ -9,7 +9,7 @@ import redis
 from igraph import Graph, plot
 
 from modules.RedisInterface.Exceptions import FileInterfaceFileTypeException, FileInterfaceEmptyFileException
-from modules.container.Tags import MERGE_SEPARATOR, SOURCE, TARGET, ID, DATA_SEPARATOR, DISPLAY_SEPARATOR
+from modules.old.Tags import MERGE_SEPARATOR, SOURCE, TARGET, ID, DATA_SEPARATOR, DISPLAY_SEPARATOR
 from modules.gui.container import OpenFile
 
 

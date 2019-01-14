@@ -1,7 +1,7 @@
 from xml.sax import make_parser, handler
 
 from modules.RedisInterface.parser.Parser import Parser
-from modules.container.Tags import EDGE, DATA_SEPARATOR, KEY, NODE, ID, SOURCE, TARGET, DATA
+from modules.old.Tags import EDGE, DATA_SEPARATOR, KEY, NODE, ID, SOURCE, TARGET, DATA
 from modules.RedisInterface.Exceptions import FileInterfaceParserException
 
 

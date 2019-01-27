@@ -1,8 +1,10 @@
 from functools import reduce
 from os.path import basename
 from tkinter import messagebox
+from time import time
 from modules.RedisInterface.Cypher import get_vertex_limited, get_edge_limited, graph_to_cypher, \
     annotation_dict_to_cypher, get_vertex_equal, get_vertex, get_edge, delete_vertex
+from time import time
 
 import redis
 
@@ -58,11 +60,14 @@ class DataBaseInterface:
 
         if self.client_get_connection():
 
+            start = time()
             response = self.__Client.execute_command('GRAPH.QUERY', dbkey, command)
 
             if report:
 
                 show_report()
+                end = time()
+                print('Query database: ' + str(end - start))
 
             return response[0]
 
@@ -103,20 +108,25 @@ class DataBaseInterface:
 
         self.__Client.execute_command('GRAPH.DELETE ' + dbkey)
 
-    def db_merge(self, selection, sourcegraph, targetgraph, targetin=False):
+    def db_merge(self, selection, sourcegraph, targetgraph, targetin=True):
 
         ### COLLECT ALL OBJECTS ###
         merge_attribute = selection[0]
 
-        if targetin:
+        if not targetin:
             selection.remove(merge_attribute)
 
         decode = lambda ids: [ID.decode('UTF-8') for ID in ids]
 
+        start = time()
         iid_sets = self.__unify_sets([set(decode(entry)) for entry in self.__query(get_vertex_equal(*selection), sourcegraph)[1:]])
+        end = time()
+        print('Collect IDs: ' + str(end - start))
+
         iid_buckets = {}
         iid_joint = list(reduce(lambda ls, js: ls.union(js), iid_sets))
 
+        start = time()
         index = 0
         for iid_set in iid_sets:
 
@@ -126,18 +136,34 @@ class DataBaseInterface:
             for iid in iid_set:
 
                 iid_buckets[iid] = iid_bucket
+        end = time()
+        print('Initialize buckets: ' + str(end - start))
 
-        vertices = self.__response_to_dict(self.__query(get_vertex(*iid_joint), sourcegraph))['v']
+        start = time()
+        vertex_response = self.__query(get_vertex(*iid_joint), sourcegraph)
+        end = time()
+        print('Collect vertices: ' + str(end - start))
 
-        edges = self.__response_to_dict(self.__query(get_edge(*iid_joint), sourcegraph))['edge']
+        vertices = self.__response_to_dict(vertex_response)
+
+        start = time()
+        edge_response = self.__query(get_edge(*iid_joint), sourcegraph)
+        end = time()
+        print('Collect edges: ' + str(end - start))
+
+        edges = self.__response_to_dict(edge_response)
 
         graph = {'vertices': [], 'edges': []}
-        
+
+        start = time()
         for vertex in vertices:
 
             iid = vertex['id']
             iid_buckets[iid]['vertex'].append(vertex)
-            
+        end = time()
+        print('Sort vertices in buckets: ' + str(end - start))
+
+        start = time()
         for edge in edges:
 
             iid_source = edge[SOURCE]
@@ -157,7 +183,10 @@ class DataBaseInterface:
                 else:
 
                     iid_buckets[iid_source]['edge'][edge_key] = [edge]
+        end = time()
+        print('Sort edges in buckets: ' + str(end - start))
 
+        start = time()
         for iid in [iid_set.pop() for iid_set in iid_sets]:
 
             merged_vertex = self.__merge_dictionaries(iid_buckets[iid]['vertex'])
@@ -181,18 +210,30 @@ class DataBaseInterface:
                 merged_edge[TARGET] = set(merged_edge[TARGET].split(MERGE_SEPARATOR)).pop()
                 merged_edge[SOURCE] = set(merged_edge[SOURCE].split(MERGE_SEPARATOR)).pop()
                 graph['edges'].append(merged_edge)
+        end = time()
+        print('Merge entities: ' + str(end - start))
 
+        start = time()
         if sourcegraph == targetgraph:
             self.__query(delete_vertex(*iid_joint), sourcegraph)
             self.db_write(graph, sourcegraph)
         else:
             self.db_write(graph, targetgraph)
+        end = time()
 
     def db_query(self, query, dbkey, to_graph=False):
 
         if to_graph:
 
-            return self.__response_to_graph(self.__query(query, dbkey))
+            return \
+                self.__split_mapping(
+                    self.__response_to_dict(
+                        self.__revise_response(
+                            self.__query(query, dbkey)
+                        ),
+                        decode=False
+                    )
+                )
 
         else:
 
@@ -204,10 +245,13 @@ class DataBaseInterface:
 
     def db_write(self, graph, dbkey):
 
-        self.__query(graph_to_cypher(graph), dbkey, report=True)
+        start = time()
 
-        map(lambda target: self.__Client.execute_command('GRAPH.QUERY', dbkey, 'CREATE INDEX ON ' + target),
-            [':vertex(id)', ':edge(target)', 'edge(source)'])
+        graph = graph_to_cypher(graph)
+        self.__query(graph, dbkey, report=True)
+
+        end = time()
+        print('Write graph into database: ' + str(end - start))
 
     def db_annotate(self, target_property, map_property, property_prefix, dictionaries, dbkey):
 
@@ -251,103 +295,128 @@ class DataBaseInterface:
         return merged_dictionary
 
     @staticmethod
-    def __response_to_dict(response):
-        # All entities queried
-        entities = list(set(entity.decode('UTF-8').split('.')[0] for entity in response[0]))
-        # Init mapping to return
-        entity_mapping = {entity: [] for entity in entities}
-        # All keys of response objects
-        keys = [key.decode('utf-8') for key in response[0]]
+    def __response_to_dict(response, decode=True):
 
-        for entry in response[1:]:
+        def get_binder_intervals():
 
-            entry_mapping = {keys[index]: entry[index].decode('utf-8') for index in range(len(keys))}
+            start = 0
 
-            for entity in entities:
+            end = 0
 
-                new_entity_object = {key.split('.')[1]: entry_mapping[key] for key in entry_mapping
-                                     if entity == key.split('.')[0]}
+            intervals = []
 
-                #TODO: USE SET INSTEAD OF CHECK!
-                if new_entity_object not in entity_mapping[entity]:
-                    entity_mapping[entity].append(new_entity_object)
+            symbol = binder[0]
 
-        return entity_mapping
+            for index in range(1, len(binder) + 1):
 
-    def __response_to_graph(self, response):
+                if index > len(binder) - 1:
 
-        def compress_entry(entry_):
+                    intervals.append(range(start, end + 1))
 
-            new_entry = {}
+                    break
 
-            for key in entry_.keys():
+                next_symbol = binder[index]
 
-                new_key = '_'.join([key.lstrip('e_').lstrip('v_') for key in key.split(DATA_SEPARATOR)])
-                new_value = set(entry_[key].split(MERGE_SEPARATOR))
-                new_value.discard('NULL')
-                new_value = DISPLAY_SEPARATOR.join(new_value)
+                if next_symbol != symbol:
 
-                new_entry[new_key] = new_value
+                    end += 1
 
-            return new_entry
+                    intervals.append(range(start, end))
 
-        def drop_null_keys(keys, sequence):
+                    symbol = next_symbol
 
-            for key in keys:
+                    start = end
 
-                if all([entry.attributes()[key] == '' for entry in sequence]):
-                    del sequence[key]
+                else:
 
-        graph = Graph()
-        vertices = []
-        edges = []
-        mapping = self.__response_to_dict(response)
+                    end += 1
 
-        for entity in mapping:
+            return intervals
 
-            for entry in mapping[entity]:
+        def decode_(value):
 
-                entry = compress_entry(entry)
+            if decode:
 
-                if ID in entry:
-                    vertices.append(entry)
+                return value.decode('UTF-8')
 
-                if SOURCE in entry and TARGET in entry:
-                    edges.append(entry)
+            else:
 
-        vertex_identifier = set()
-        for vertex in vertices:
+                return value
 
-            iid = vertex[ID]
+        start = time()
 
-            if iid not in vertex_identifier:
+        binder, keys = zip(*[decode_(value).split('.') for value in response[0]])
+        binder_intervals = get_binder_intervals()
 
-                graph.add_vertex(name=iid, **vertex)
+        mapping = \
+            [
+                {keys[index]: decode_(entry[index]) for index in interval}
+                for interval in binder_intervals
+                for entry in response[1:]
+        ]
 
-                vertex_identifier.add(iid)
+        end = time()
+        print('Mapping response to dict: ' + str(end - start))
 
-        edge_identifier = set()
-        for edge in edges:
+        return mapping
 
-            source = edge.pop(SOURCE)
-            target = edge.pop(TARGET)
+    @staticmethod
+    def __revise_response(response):
 
-            iid = source + target
+        start = time()
 
-            if iid not in edge_identifier:
+        def revise_keys():
 
-                edge['src'] = source
-                edge['tgt'] = target
+            response[0] = ['_'.join([key.lstrip('e_').lstrip('v_')
+                                     for key in key.decode('UTF-8').split(DATA_SEPARATOR)])
+                           for key in response[0]]
 
-                graph.add_edge(source=source, target=target, **edge)
+        def revise_values():
 
-                edge_identifier.add(iid)
+            for index in range(1, len(response)):
 
-        for keys_, sequence_ in [(graph.vertex_attributes(), graph.vs), (graph.edge_attributes(), graph.es)]:
+                response[index] = [DISPLAY_SEPARATOR.join([value
+                                                           for value in set(value.decode('UTF-8').split(MERGE_SEPARATOR))
+                                                           if value != 'NULL'])
+                                   for value in response[index]]
 
-            drop_null_keys(keys_, sequence_)
+        def drop_null_keys():
 
-        return graph
+            columns = list(zip(*response))
+
+            dropped = 0
+
+            for index in range(len(response[0])):
+
+                if all([value == '' for value in columns[index][1:]]):
+
+                    for entry in response:
+
+                        entry.pop(index - dropped)
+
+                    dropped += 1
+
+        revise_keys()
+        revise_values()
+        drop_null_keys()
+
+        end = time()
+        print('Revise response: ' + str(end-start))
+
+        return response
+
+    @staticmethod
+    def __split_mapping(mapping):
+
+        start = time()
+
+        a = (list({v[ID]: v for v in mapping if ID in v}.values()),
+                list({e[SOURCE] + e[TARGET]: e for e in mapping if SOURCE in e and TARGET in e}.values()))
+
+        end = time()
+        print('Sort mapping: ' + str(end-start))
+
+        return a
 
 
 class FileInterface:
@@ -379,7 +448,7 @@ class FileInterface:
         container[file_name] = OpenFile(name=file_name,
                                         path=path,
                                         values=self.__Parser[file_type].get_response(),
-                                        ftype=file_type)
+                                        file_type=file_type)
 
     def read_file(self, instruction, file, mode):
 
@@ -410,7 +479,7 @@ class FileInterface:
 
             file.close()
 
-    def write_file(self, path, graph):
+    def write_file(self, path, query):
 
         file_type, file_name = self.__file_info(path)
 
@@ -420,54 +489,79 @@ class FileInterface:
 
         if file_type == 'graphml':
 
-            try:
-
-                file = open(path)
-
-            except FileNotFoundError:
-
-                file = open(path, 'w+')
-
-            try:
-
-                graph.write_graphml(f=file)
-
-            finally:
-
-                file.close()
+            self.__write_graphml(self.__create_igraph(query[0], query[1]), path)
 
         elif file_type == 'png':
 
-            def set_visual_style():
+            self.__write_png(self.__create_igraph(query[0], query[1]), path)
 
-                vertex_color_map = {}
-                edge_color_map = {}
+    @staticmethod
+    def __write_graphml(graph, path):
 
-                for property_count, color_map in [(len(graph.vertex_attributes()), vertex_color_map),
-                                                  (len(graph.edge_attributes()), edge_color_map)]:
+        try:
 
-                    rgb_fraction = round(255 / max(1, property_count))
+            file = open(path)
 
-                    for count in range(property_count + 1):
-                        color_map[count] = ', '.join([str(min(255, 0 + rgb_fraction * count)),
-                                                      str(200),
-                                                      str(max(0, 255 - rgb_fraction * count))])
+        except FileNotFoundError:
 
-                visual_style = {
-                    'vertex_color': [
-                        vertex_color_map[len([attribute for attribute in vertex.attributes().values() if attribute])]
-                        for
-                        vertex in graph.vs],
-                    'edge_color': [
-                        edge_color_map[len([attribute for attribute in edge.attributes().values() if attribute])]
-                        for edge in graph.es]
-                }
+            file = open(path, 'w+')
 
-                return visual_style
+        try:
 
-            plot(graph, path, **set_visual_style())
+            graph.write_graphml(f=file)
+
+        finally:
+
+            file.close()
+
+    @staticmethod
+    def __write_png(graph, path):
+
+        def set_visual_style():
+
+            vertex_color_map = {}
+            edge_color_map = {}
+
+            for property_count, color_map in [(len(graph.vertex_attributes()), vertex_color_map),
+                                              (len(graph.edge_attributes()), edge_color_map)]:
+
+                rgb_fraction = round(255 / max(1, property_count))
+
+                for count in range(property_count + 1):
+                    color_map[count] = ', '.join([str(min(255, 0 + rgb_fraction * count)),
+                                                  str(94),
+                                                  str(max(0, 255 - rgb_fraction * count))])
+
+            visual_style = {
+                'vertex_color': [
+                    vertex_color_map[len([attribute for attribute in vertex.attributes().values() if attribute])]
+                    for
+                    vertex in graph.vs],
+                'edge_color': [
+                    edge_color_map[len([attribute for attribute in edge.attributes().values() if attribute])]
+                    for edge in graph.es]
+            }
+
+            return visual_style
+
+        plot(graph, path, bbox=(2000, 2000), **set_visual_style())
+
+    @staticmethod
+    def __create_igraph(vertices, edges):
+
+        graph = Graph()
+
+        for v in vertices:
+
+            graph.add_vertex(name=v.pop(ID), **v)
+
+        for e in edges:
+
+            graph.add_edge(source=e.pop(SOURCE), target=e.pop(TARGET), **e)
+
+        return graph
 
     @staticmethod
     def __file_info(path):
 
-        return basename(path).split('.')[1], basename(path).split('.')[0]
+        return str(basename(path).split('.')[1]), str(basename(path).split('.')[0])

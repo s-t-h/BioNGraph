@@ -104,7 +104,7 @@ def create_edge(*args):
 def get_edge(*args):
 
     return MATCH + '()-[edge]->()' \
-           + WHERE + OR.join(['edge.source' + IS + _wrap(id) + OR + 'edge.target' + IS + _wrap(id) for id in args]) \
+           + WHERE + OR.join(['edge.target' + IS + _wrap(id) for id in args]) \
            + RETURN + 'edge'
 
 

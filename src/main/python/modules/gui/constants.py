@@ -22,6 +22,7 @@ CONTAINER_UPDATE_INTERVAL = 0.6
 WIDGET_UPDATE_INTERVAL = 200
 
 ICON_PATH = 'resources/icons.zip'
+BITMAP_PATH = 'resources/icon.ico'
 ICON_STD_SIZE = 24
 TITLE = 'BioNGraph'
 TITLE_ = 'BioNGraph - '

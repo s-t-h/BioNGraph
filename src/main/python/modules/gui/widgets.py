@@ -10,8 +10,8 @@ from webbrowser import open_new
 from zipfile import ZipFile
 from copy import deepcopy
 
-from modules.old.Tags import DATA_SEPARATOR, VERTEX, EDGE
-from modules.gui.constants import ICON_PATH, ICON_STD_SIZE, TITLE_, TITLE, ABOUT_MENU_LABEL
+from modules.old.Tags import DATA_SEPARATOR, VERTEX, EDGE, ID, SOURCE, TARGET
+from modules.gui.constants import ICON_PATH, ICON_STD_SIZE, TITLE_, TITLE, ABOUT_MENU_LABEL, BITMAP_PATH
 
 
 def load_icon(iconname, width=ICON_STD_SIZE, height=ICON_STD_SIZE) -> ImageTk.PhotoImage:
@@ -174,6 +174,7 @@ class MasterWidget:
 
         self.Main = Tk()
         self.Main.title(TITLE)
+        self.Main.iconbitmap(BITMAP_PATH)
 
         self.__main_pane = Panedwindow(self.Main, orient=HORIZONTAL)
         self.__sub_pane = Panedwindow(self.__main_pane, orient=VERTICAL)
@@ -453,7 +454,7 @@ class ClientMenu(SuperMenu):
 
     def __init__(self, parent: Frame, db_status: 'DataBaseStatus', thread_manager: 'ThreadManager'):
         """
-        Initializes a new `Client` object.
+        Initializes a new `ClientMenu` object.
 
         The `ClientMenu` comprises a `Button` to connect/disconnect to a RedisServer and
         entries for Port and Host of a RedisServer the user wants to establish a connection to.
@@ -514,7 +515,8 @@ class ClientMenu(SuperMenu):
         Stacks a connect task.
 
         The Port and Host entries values are collected and used to request a
-        connection with a RedisServer (`client_connect()`).
+        connection with a RedisServer (`client_connect()`). Is invoked when the current
+        status is disconnected and the user clicks on the `Button`.
         """
 
         # TODO: Implement a try/except block to catch bad user input.
@@ -529,24 +531,35 @@ class ClientMenu(SuperMenu):
         """
         Stack a disconnect task.
 
-        Request the disconnection from a RedisServer (`client_disconnect()`)
+        Request the disconnection from a RedisServer (`client_disconnect()`) Is invoked when the
+        current status is connected and the user clicks on the `Button`,
         """
 
         self._ThreadManager.stack_task(self._DB.DBInterface.client_disconnect, ())
 
 
-# TODO: Create Doc!
-
-
 class DatabaseMenu(SuperMenu):
     """
-
+    Sub class of `SuperMenu`. Implements functionality to manage graphs.
     """
 
     def __init__(self, parent, db_status, thread_manager):
         """
+        Initializes a new `DatabaseMenu` object.
 
-        :param parent:
+        The `DatabaseMenu` comprises `Button` widgets to delete graph keys and to create a backup of the current
+        database on disk and a `Combobox` widget to add new graph keys and select a graph key to work on.
+
+        Parameters
+        ----------
+        parent : Frame
+            Parent widget to pack `__Main` to.
+
+        db_status : DataBaseStatus
+            Instance of `DataBaseStatus`. Used to update information from the database.
+
+        thread_manager : ThreadManager
+            Instance of `ThreadManager`. Used to stack GUI external tasks.
         """
 
         super().__init__(parent, db_status, thread_manager)
@@ -567,9 +580,16 @@ class DatabaseMenu(SuperMenu):
 
     def display_state(self, state):
         """
+        Visualizes the state of `db_status` on child widgets.
 
-        :param state:
-        :return:
+        If a connection is established the Backup and Delete buttons as well as the combobox
+        are set to NORMAL state allowing users to interact with them. If a connection is
+        quit this process is applied contrariwise.
+
+        Parameter
+        ---------
+        state : str
+            The connection state of `db_status`.
         """
 
         if state == 'connected':
@@ -582,11 +602,19 @@ class DatabaseMenu(SuperMenu):
 
         self._Widgets['KeyEntry'].configure(values=list(self._DB.DBKeys))
 
-    def __add_key(self, event):
+    def __add_key(self, event: Event):
         """
+        Add a new key to the key-list.
 
-        :param event:
-        :return:
+        Adds the current text entered in the Combobox as a new graph key.
+        The new key is not stored in the database until a CREATE query is sent.
+        Is invoked if the user enters a text to the Combobox and presses return.
+
+        Parameters
+        ----------
+        event : `Event`
+            The `Tkinter` `Event`. This parameter is needed due to the internal implementation of
+            the `Tkinter` `bind` method but not used for functionality.
         """
 
         self._DB.add_key(
@@ -597,8 +625,10 @@ class DatabaseMenu(SuperMenu):
 
     def __delete_key(self):
         """
+        Deletes the active key and graph associated with it.
 
-        :return:
+        Deletes the active key (displayed in the Combobox) from the key-list as well as the graph stored
+        in the database associated with this key, if any. Is invoked when users click on the Delete button.
         """
 
         if messagebox.askokcancel('Delete Key',
@@ -610,17 +640,31 @@ class DatabaseMenu(SuperMenu):
 
     def __set_key(self, event):
         """
+        Sets a key as active key.
 
-        :return:
+        Sets the key chosen from the key-list as active key. Any active key set before will be re-added
+        to the key-list. Is invoked when users choose a key from the key-list.
+
+        Parameters
+        ----------
+        event : `Event`
+            The `Tkinter` `Event`. This parameter is needed due to the internal implementation of
+            the `Tkinter` `bind` method but not used for functionality.
         """
 
         self._DB.shift_key(self._Widgets['KeyEntry'].get())
 
     def __reset_key(self, event):
         """
+        Re-enters the active key.
 
-        :param event:
-        :return:
+        Re-enters the active key in the entry. Is invoked if the Combobox loses focus.
+
+        Parameters
+        ----------
+        event : `Event`
+            The `Tkinter` `Event`. This parameter is needed due to the internal implementation of
+            the `Tkinter` `bind` method but not used for functionality.
         """
 
         try:
@@ -638,8 +682,10 @@ class DatabaseMenu(SuperMenu):
 
     def __save_db(self):
         """
+        Stack a backup task.
 
-        :return:
+        Sends a request to save the current database to disk. Is invoked when the user clicks
+        on the backup `Button`.
         """
 
         self._ThreadManager.stack_task(self._DB.DBInterface.db_save, ())
@@ -649,8 +695,21 @@ class StatusMenu(SuperMenu):
 
     def __init__(self, parent, db_status, thread_manager):
         """
+        Initializes a new `StatusMenu` object.
 
-        :param parent:
+        The `StatusMenu` comprises two icons to display the current connection status as well
+        as if stacked tasks are currently being executed.
+
+        Parameters
+        ----------
+        parent : Frame
+            Parent widget to pack `__Main` to.
+
+        db_status : DataBaseStatus
+            Instance of `DataBaseStatus`. Used to update information from the database.
+
+        thread_manager : ThreadManager
+            Instance of `ThreadManager`. Used to stack GUI external tasks.
         """
 
         super().__init__(parent, db_status, thread_manager)
@@ -666,9 +725,16 @@ class StatusMenu(SuperMenu):
 
     def display_state(self, state):
         """
+        Visualizes the state of `db_status` on child widgets.
 
-        :param state:
-        :return:
+        If a connection is established the icon displaying the connection status will change.
+        If a connection is quit this process is applied contrariwise. If any open task is
+        being executed the icon displaying executed tasks will change.
+
+        Parameter
+        ---------
+        state : str
+            The connection state of `db_status`.
         """
 
         if state == 'connected':
@@ -687,8 +753,10 @@ class StatusMenu(SuperMenu):
 
     def __display_running_threads(self):
         """
+        Displays if any task is being executed.
 
-        :return:
+        As long as there are open threads (executing a stacked task) the according icon will
+        change its style by rotating a dotted circle.
         """
 
         if len(enumerate()) > 2:
@@ -701,6 +769,9 @@ class StatusMenu(SuperMenu):
         else:
 
             self._Widgets['Thread'].configure(image='')
+
+
+# TODO: Create Doc!
 
 
 class ImportNotebook:
@@ -1220,13 +1291,13 @@ class QueryTab(SuperEdit):
 
             query = self.__get_query()
 
-            if 'return' in query:
+            if 'return' in query.lower():
 
                 self.ThreadManager.stack_task(self.DB.request_query_response, (query,))
 
             else:
 
-                self.ThreadManager.stack_task(self.DB.request_query_response, (query, self.DB.DBActiveKey))
+                self.ThreadManager.stack_task(self.DB.DBInterface.db_query, (query, self.DB.DBActiveKey))
 
     def pack(self, px=5, py=5):
 
@@ -1247,7 +1318,7 @@ class QueryTab(SuperEdit):
 
     def __get_query(self):
 
-        return self.Widgets['Text'].get('1.0', END).replace('\n', ' ').replace('\t', ' ').lower()
+        return self.Widgets['Text'].get('1.0', END).replace('\n', ' ').replace('\t', ' ')
 
     def __explain_query(self):
 
@@ -1314,7 +1385,7 @@ class MergeTab(SuperEdit):
                                               (source_attributes,
                                                self.DB.DBActiveKey,
                                                target_graph,
-                                               not self.target_attribute_exists)
+                                               self.target_attribute_exists)
                                               )
 
     def pack(self, px=5, py=5):
@@ -1349,6 +1420,7 @@ class MergeTab(SuperEdit):
             if merge_attribute:
 
                 self.target_attribute_exists = True
+                self.Widgets['TgtAttrEntry'].delete(0, END)
                 self.Widgets['TgtAttrEntry'].insert(END, merge_attribute.pop())
                 self.Widgets['TgtAttrEntry'].configure(state=DISABLED)
 
@@ -1473,66 +1545,50 @@ class TableTab(SuperTab):
             def assemble_headings(table, headings):
 
                 table['show'] = 'headings'
-                table.delete(*table.get_children())
-
                 table.config(columns=headings)
 
                 for heading in headings:
 
-                    if heading == 'id':
-
-                        text = 'ID'
-
-                    elif heading == 'src':
-
-                        text = 'SOURCE'
-
-                    elif heading == 'tgt':
-
-                        text = 'TARGET'
-
-                    else:
-
-                        text = heading
-
                     table.heading(heading, text=heading)
 
-            self.DB.DBStatus['query'] = ' '
+            def insert_entities(table, entities):
 
-            graph = self.DB.DBQuery
+                table_index = 0
 
-            table_index = 0
+                assemble_headings(table, list(entities[0].keys()))
 
-            try:
+                for entity in entities:
 
-                del graph.vs['name']
-
-            except KeyError:
-
-                pass
-
-            for table, properties, entries in [(self.Widgets['VertexTable'], graph.vertex_attributes(), graph.vs),
-                                               (self.Widgets['EdgeTable'], graph.edge_attributes(), graph.es)]:
-
-                assemble_headings(table, properties)
-
-                for entry in entries:
-
-                    values = list(entry.attributes().values())
-
-                    table.insert('', 'end', iid=table_index, values=values, tags=['entry'])
+                    table.insert('', 'end', iid=table_index, values=list(entity.values()), tags=['entry'])
 
                     table_index += 1
 
+            vertex_table = self.Widgets['VertexTable']
+            edge_table = self.Widgets['EdgeTable']
+            vertices, edges = self.DB.DBQuery
+
+            vertex_table.delete(*vertex_table.get_children())
+            edge_table.delete(*edge_table.get_children())
+
+            self.DB.DBStatus['query'] = ' '
+
+            if vertices:
+
+                insert_entities(vertex_table, vertices)
+
+            if edges:
+
+                insert_entities(edge_table, edges)
+
     def __rename_key(self, new_name, old_name):
 
-        for vertex in self.DB.DBQuery.vs:
+        for vertex in self.DB.DBQuery[0]:
 
             if old_name in vertex:
 
                 vertex[new_name] = vertex.pop(old_name)
 
-        for edge in self.DB.DBQuery.es:
+        for edge in self.DB.DBQuery[1]:
 
             if old_name in edge:
 
@@ -1556,7 +1612,7 @@ class TableTab(SuperTab):
                                               parent=table
                                               ).replace(' ', '')
 
-            if new_name in ['id', 'source', 'target', '']:
+            if new_name in [ID, SOURCE, TARGET, '']:
 
                 messagebox.showinfo('BioNGraph - Rename',
                                     '...')

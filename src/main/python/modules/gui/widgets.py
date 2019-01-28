@@ -983,7 +983,7 @@ class ImportTab(SuperImport):
 
                 graph = self.DB.FileInterface.read_file(selection, (file_type, file_name, file_path), 'parse_graph')
 
-                self.DB.DBInterface.db_write(graph, self.DB.DBActiveKey)
+                self.DB.DBInterface.db_write(graph, self.DB.DBActiveKey, label_=file_name, type_=file_name)
 
                 del self.Container['In'][file_name]
 

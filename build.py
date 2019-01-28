@@ -21,7 +21,8 @@ def set_properties(project):
     project.set_property("smart_copy_resources_basedir", "src/main/resources")
     project.set_property("smart_copy_resources", {
         "UserGuide.html": "target/dist/BioNGraph/resources",
-        "icons.zip": "target/dist/BioNGraph/resources"
+        "icons.zip": "target/dist/BioNGraph/resources",
+        "icon.ico": "target/dist/BioNGraph/resources"
     })
 
 '''

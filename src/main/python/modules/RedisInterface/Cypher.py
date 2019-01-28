@@ -1,5 +1,5 @@
 from modules.old.Tags import CREATE, VERTEX, SOURCE, TARGET, ID, EDGE, MATCH, WHERE, AND, NULL, NOT, IS, \
-    RETURN, OR, DELETE, SET, DATA_SEPARATOR
+    DISTINCT, OR, DELETE, SET, DATA_SEPARATOR, RETURN
 
 
 def _dict_to_string(dictionary):
@@ -23,32 +23,34 @@ def _wrap(string):
     return """'""" + string + """'"""
 
 
-def create_vertex(*args):
+def create_vertex(*args, label_=VERTEX):
 
     return ''.join(
         map(
-            lambda attributes: ' ,(' + attributes[ID] + ':' + VERTEX + ' ' + _dict_to_string(attributes) + ')'
+            lambda attributes: ' ,(' + attributes[ID] + ':' + label_ + ' ' + _dict_to_string(attributes) + ')'
             if args.index(attributes) > 0
-            else '(' + attributes[ID] + ':' + VERTEX + ' ' + _dict_to_string(attributes) + ')',
+            else '(' + attributes[ID] + ':' + label_ + ' ' + _dict_to_string(attributes) + ')',
             args
         )
     )
 
-
+'''
 def get_vertex(*args):
 
     return \
         MATCH + '(v)' \
         + WHERE + OR.join(['v.id' + IS + _wrap(id) for id in args]) \
         + RETURN + 'v'
+'''
 
-
+'''
 def get_objects_to_merge(*args):
 
     return \
         MATCH + '()-[ie]->(v)-[oe]->()' \
         + WHERE + OR.join(['v.id' + IS + _wrap(id) for id in args]) \
         + RETURN + 'v, ie, oe'
+'''
 
 
 def delete_vertex(*args):
@@ -63,6 +65,7 @@ def delete_vertex(*args):
     ) + ')' + DELETE + 'v'
 
 
+'''
 def get_vertex_equal(*args):
 
     nmbr = len(args)
@@ -82,40 +85,57 @@ def get_vertex_equal(*args):
                                    for index in range(0, nmbr)])
 
     return command
+'''
 
 
 def get_vertex_limited():
 
-    return MATCH + '(v)' + RETURN + 'v LIMIT 1'
+    return MATCH + '(v)' + DISTINCT + 'v LIMIT 1'
 
 
-def create_edge(*args):
+def create_edge(*args, type_=EDGE):
 
     return ''.join(
         map(
             lambda attributes: ', (' + attributes[SOURCE] + ')-'
-                               + '[:' + EDGE + ' ' + _dict_to_string(attributes) + ']'
+                               + '[:' + type_ + ' ' + _dict_to_string(attributes) + ']'
                                + '->(' + attributes[TARGET] + ')',
             args
         )
     )
 
 
+'''
 def get_edge(*args):
 
     return MATCH + '()-[edge]->()' \
            + WHERE + OR.join(['edge.target' + IS + _wrap(id) for id in args]) \
            + RETURN + 'edge'
+'''
 
 
 def get_edge_limited():
 
-    return MATCH + '()-[edge]->()' + RETURN + 'edge LIMIT 1'
+    return MATCH + '()-[edge]->()' + DISTINCT + 'edge LIMIT 1'
 
 
-def graph_to_cypher(graph):
+def get_merge_entities(*args):
 
-    return CREATE + create_vertex(*graph['vertices']) + create_edge(*graph['edges'])
+    return \
+        MATCH + '(v)-[e]->(w)' + \
+        WHERE + OR.join(['v.' + arg + NOT + NULL for arg in args]) + \
+        OR + OR.join(['w.' + arg + NOT + NULL for arg in args]) + \
+        DISTINCT + 'v, w, e'
+
+
+def get_merge_values(*args):
+
+    return MATCH + '(v)' + RETURN + ', '.join(['v.' + arg for arg in args])
+
+
+def graph_to_cypher(graph, label_=VERTEX, type_=EDGE):
+
+    return CREATE + create_vertex(*graph['vertices'], label_=label_) + create_edge(*graph['edges'], type_=type_)
 
 
 def annotation_dict_to_cypher(target_property, map_property, property_prefix, dictionaries):

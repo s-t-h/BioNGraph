@@ -10,7 +10,7 @@ FILES = 'files'
 
 DATA_SEPARATOR = '__'
 MERGE_SEPARATOR = '___'
-DISPLAY_SEPARATOR = ';'
+DISPLAY_SEPARATOR = ','
 SEPARATOR = '~'
 
 FILE = 0
@@ -28,7 +28,8 @@ CREATE = ' create '
 MERGE = ' merge '
 MATCH = ' match '
 WHERE = ' where '
-RETURN = ' return distinct '
+DISTINCT = ' return distinct '
+RETURN = ' return '
 AND = ' and '
 OR = ' or '
 DELETE = ' delete '

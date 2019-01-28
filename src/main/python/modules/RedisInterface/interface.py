@@ -1,9 +1,10 @@
 from functools import reduce
+from itertools import chain
 from os.path import basename
 from tkinter import messagebox
 from time import time
 from modules.RedisInterface.Cypher import get_vertex_limited, get_edge_limited, graph_to_cypher, \
-    annotation_dict_to_cypher, get_vertex_equal, get_vertex, get_edge, delete_vertex
+    annotation_dict_to_cypher, get_merge_entities, get_merge_values
 from time import time
 
 import redis
@@ -11,7 +12,7 @@ import redis
 from igraph import Graph, plot
 
 from modules.RedisInterface.Exceptions import FileInterfaceFileTypeException, FileInterfaceEmptyFileException
-from modules.old.Tags import MERGE_SEPARATOR, SOURCE, TARGET, ID, DATA_SEPARATOR, DISPLAY_SEPARATOR
+from modules.old.Tags import MERGE_SEPARATOR, SOURCE, TARGET, ID, DATA_SEPARATOR, DISPLAY_SEPARATOR, VERTEX, EDGE
 from modules.gui.container import OpenFile
 
 
@@ -110,116 +111,104 @@ class DataBaseInterface:
 
     def db_merge(self, selection, sourcegraph, targetgraph, targetin=True):
 
-        ### COLLECT ALL OBJECTS ###
-        merge_attribute = selection[0]
+        def extract_(entity, *args):
 
-        if not targetin:
-            selection.remove(merge_attribute)
+            key_ = set(map(lambda key: entity[key], args))
+            key_.discard('NULL')
 
-        decode = lambda ids: [ID.decode('UTF-8') for ID in ids]
+            return key_.pop()
+
+        merge_property = selection[0]
+        selection.remove(merge_property)
 
         start = time()
-        iid_sets = self.__unify_sets([set(decode(entry)) for entry in self.__query(get_vertex_equal(*selection), sourcegraph)[1:]])
+        distinct_values = set(value.decode('UTF-8') for value in
+                              chain.from_iterable(self.__query(get_merge_values(*selection), sourcegraph)[1:]))
+        distinct_values.discard('NULL')
         end = time()
-        print('Collect IDs: ' + str(end - start))
+        print('Get distinct values: ' + str(end - start))
+        print()
 
-        iid_buckets = {}
-        iid_joint = list(reduce(lambda ls, js: ls.union(js), iid_sets))
+        start = time()
+        response = \
+            self.__split_mapping(
+                    self.__response_to_dict(
+                        self.__query(get_merge_entities(*selection), sourcegraph),
+                        decode=True
+                    )
+            )
+        end = time()
+        print('Query for entities to merge: ' + str(end - start))
+        print()
 
+        buckets = {}
         start = time()
         index = 0
-        for iid_set in iid_sets:
+        for value in distinct_values:
 
-            iid_bucket = {'vertex': [], 'edge': {}, 'id': (merge_attribute + str(index))}
+            buckets[value] = {'vertex': [], 'edge': {}, 'id': (merge_property + str(index))}
             index += 1
 
-            for iid in iid_set:
-
-                iid_buckets[iid] = iid_bucket
         end = time()
         print('Initialize buckets: ' + str(end - start))
+        print()
 
         start = time()
-        vertex_response = self.__query(get_vertex(*iid_joint), sourcegraph)
-        end = time()
-        print('Collect vertices: ' + str(end - start))
-
-        vertices = self.__response_to_dict(vertex_response)
-
-        start = time()
-        edge_response = self.__query(get_edge(*iid_joint), sourcegraph)
-        end = time()
-        print('Collect edges: ' + str(end - start))
-
-        edges = self.__response_to_dict(edge_response)
-
-        graph = {'vertices': [], 'edges': []}
-
-        start = time()
-        for vertex in vertices:
-
-            iid = vertex['id']
-            iid_buckets[iid]['vertex'].append(vertex)
+        for vertex in response[0]:
+            bucket = buckets[extract_(vertex, *selection)]
+            bucket['vertex'].append(vertex)
+            buckets[vertex['id']] = bucket
         end = time()
         print('Sort vertices in buckets: ' + str(end - start))
+        print()
 
         start = time()
-        for edge in edges:
+        for edge in response[1]:
+            edge_source = edge[SOURCE]
+            edge_target = edge[TARGET]
+            edge[SOURCE] = buckets[edge_source]['id']
+            edge[TARGET] = buckets[edge_target]['id']
+            edge_id = edge[SOURCE] + edge[TARGET]
 
-            iid_source = edge[SOURCE]
-            iid_target = edge[TARGET]
+            bucket = buckets[edge_source]
 
-            if iid_target in iid_buckets and iid_source in iid_buckets:
+            if edge_id in bucket['edge']:
 
-                edge[SOURCE] = iid_buckets[iid_source]['id']
-                edge[TARGET] = iid_buckets[iid_target]['id']
+                bucket['edge'][edge_id].append(edge)
 
-                edge_key = edge[SOURCE] + edge[TARGET]
+            else:
 
-                if edge_key in iid_buckets[iid_source]['edge']:
-
-                    iid_buckets[iid_source]['edge'][edge_key].append(edge)
-
-                else:
-
-                    iid_buckets[iid_source]['edge'][edge_key] = [edge]
+                bucket['edge'][edge_id] = [edge]
         end = time()
         print('Sort edges in buckets: ' + str(end - start))
+        print()
 
         start = time()
-        for iid in [iid_set.pop() for iid_set in iid_sets]:
+        graph = {'vertices': [], 'edges': []}
+        for value, bucket in buckets.items():
 
-            merged_vertex = self.__merge_dictionaries(iid_buckets[iid]['vertex'])
-            merged_vertex['id'] = iid_buckets[iid]['id']
+            if bucket['vertex']:
 
-            merge_attribute_value = MERGE_SEPARATOR.join([merged_vertex[attribute] for attribute in selection])
-            merge_attribute_value = set(value for value in merge_attribute_value.split(MERGE_SEPARATOR))
-            merge_attribute_value.discard('NULL')
-            merge_attribute_value = merge_attribute_value.pop()
+                merged_vertex = self.__merge_dictionaries(bucket['vertex'])
+                merged_vertex['id'] = bucket['id']
+                merged_vertex[merge_property] = value
 
-            for attribute in selection:
-                merged_vertex[attribute] = 'NULL'
-            merged_vertex[merge_attribute] = merge_attribute_value
+                for property_ in selection:
+                    merged_vertex[property_] = 'NULL'
 
-            graph['vertices'].append(merged_vertex)
+                graph['vertices'].append(merged_vertex)
 
-            for edge_key in iid_buckets[iid]['edge']:
+                for edge_id in bucket['edge']:
+                    merged_edge = self.__merge_dictionaries(bucket['edge'][edge_id])
+                    merged_edge[TARGET] = set(merged_edge[TARGET].split(MERGE_SEPARATOR)).pop()
+                    merged_edge[SOURCE] = set(merged_edge[SOURCE].split(MERGE_SEPARATOR)).pop()
 
-                merged_edge = self.__merge_dictionaries(iid_buckets[iid]['edge'][edge_key])
-
-                merged_edge[TARGET] = set(merged_edge[TARGET].split(MERGE_SEPARATOR)).pop()
-                merged_edge[SOURCE] = set(merged_edge[SOURCE].split(MERGE_SEPARATOR)).pop()
-                graph['edges'].append(merged_edge)
+                    graph['edges'].append(merged_edge)
         end = time()
         print('Merge entities: ' + str(end - start))
+        print()
 
-        start = time()
-        if sourcegraph == targetgraph:
-            self.__query(delete_vertex(*iid_joint), sourcegraph)
-            self.db_write(graph, sourcegraph)
-        else:
-            self.db_write(graph, targetgraph)
-        end = time()
+        self.db_write(graph, targetgraph, label_=targetgraph, type_=targetgraph)
 
     def db_query(self, query, dbkey, to_graph=False):
 
@@ -243,17 +232,23 @@ class DataBaseInterface:
 
         return self.__Client.execute_command('GRAPH.EXPLAIN', dbkey, query)
 
-    def db_write(self, graph, dbkey):
+    def db_write(self, graph, dbkey, label_=VERTEX, type_=EDGE):
 
         start = time()
 
-        graph = graph_to_cypher(graph)
+        graph = graph_to_cypher(graph, label_=label_, type_=type_)
         self.__query(graph, dbkey, report=True)
 
         end = time()
         print('Write graph into database: ' + str(end - start))
 
     def db_annotate(self, target_property, map_property, property_prefix, dictionaries, dbkey):
+
+        distinct_values = set(value.decode('UTF-8') for value in
+                              chain.from_iterable(self.__query(get_merge_values(target_property), dbkey)[1:]))
+        distinct_values.discard('NULL')
+
+        dictionaries = [dictionary for dictionary in dictionaries if dictionary[map_property] in distinct_values]
 
         self.__query(annotation_dict_to_cypher(target_property, map_property, property_prefix, dictionaries),
                      dbkey, report=True)
@@ -417,6 +412,125 @@ class DataBaseInterface:
         print('Sort mapping: ' + str(end-start))
 
         return a
+
+    '''
+        def db_merge(self, selection, sourcegraph, targetgraph, targetin=True):
+
+        ### COLLECT ALL OBJECTS ###
+        merge_attribute = selection[0]
+
+        if not targetin:
+            selection.remove(merge_attribute)
+
+        decode = lambda ids: [ID.decode('UTF-8') for ID in ids]
+
+        start = time()
+        iid_sets = self.__unify_sets([set(decode(entry)) for entry in self.__query(get_vertex_equal(*selection), sourcegraph)[1:]])
+        end = time()
+        print('Collect IDs: ' + str(end - start))
+
+        iid_buckets = {}
+        iid_joint = list(reduce(lambda ls, js: ls.union(js), iid_sets))
+
+        start = time()
+        index = 0
+        for iid_set in iid_sets:
+
+            iid_bucket = {'vertex': [], 'edge': {}, 'id': (merge_attribute + str(index))}
+            index += 1
+
+            for iid in iid_set:
+
+                iid_buckets[iid] = iid_bucket
+        end = time()
+        print('Initialize buckets: ' + str(end - start))
+
+        start = time()
+        vertex_response = self.__query(get_vertex(*iid_joint), sourcegraph)
+        end = time()
+        print('Collect vertices: ' + str(end - start))
+
+        vertices = self.__response_to_dict(vertex_response)
+
+        start = time()
+        edge_response = self.__query(get_edge(*iid_joint), sourcegraph)
+        end = time()
+        print('Collect edges: ' + str(end - start))
+
+        edges = self.__response_to_dict(edge_response)
+
+        graph = {'vertices': [], 'edges': []}
+
+        start = time()
+        for vertex in vertices:
+
+            iid = vertex['id']
+            iid_buckets[iid]['vertex'].append(vertex)
+        end = time()
+        print('Sort vertices in buckets: ' + str(end - start))
+
+        start = time()
+        for edge in edges:
+
+            iid_source = edge[SOURCE]
+            iid_target = edge[TARGET]
+
+            if iid_target in iid_buckets and iid_source in iid_buckets:
+
+                edge[SOURCE] = iid_buckets[iid_source]['id']
+                edge[TARGET] = iid_buckets[iid_target]['id']
+
+                edge_key = edge[SOURCE] + edge[TARGET]
+
+                if edge_key in iid_buckets[iid_source]['edge']:
+
+                    iid_buckets[iid_source]['edge'][edge_key].append(edge)
+
+                else:
+
+                    iid_buckets[iid_source]['edge'][edge_key] = [edge]
+
+        end = time()
+        print('Sort edges in buckets: ' + str(end - start))
+
+        start = time()
+        for iid in [iid_set.pop() for iid_set in iid_sets]:
+
+            merged_vertex = self.__merge_dictionaries(iid_buckets[iid]['vertex'])
+            merged_vertex['id'] = iid_buckets[iid]['id']
+
+            merge_attribute_value = MERGE_SEPARATOR.join([merged_vertex[attribute] for attribute in selection])
+            merge_attribute_value = set(value for value in merge_attribute_value.split(MERGE_SEPARATOR))
+            merge_attribute_value.discard('NULL')
+            merge_attribute_value = merge_attribute_value.pop()
+
+            for attribute in selection:
+                merged_vertex[attribute] = 'NULL'
+            merged_vertex[merge_attribute] = merge_attribute_value
+
+            graph['vertices'].append(merged_vertex)
+
+            for edge_key in iid_buckets[iid]['edge']:
+
+                merged_edge = self.__merge_dictionaries(iid_buckets[iid]['edge'][edge_key])
+
+                merged_edge[TARGET] = set(merged_edge[TARGET].split(MERGE_SEPARATOR)).pop()
+                merged_edge[SOURCE] = set(merged_edge[SOURCE].split(MERGE_SEPARATOR)).pop()
+                graph['edges'].append(merged_edge)
+        end = time()
+        print('Merge entities: ' + str(end - start))
+
+        if sourcegraph == targetgraph:
+
+            self.__query(delete_vertex(*iid_joint), sourcegraph)
+            self.db_write(graph, sourcegraph)
+
+        else:
+
+            self.db_write(graph, targetgraph, label_=targetgraph, type_=targetgraph)
+
+        end = time()
+    '''
 
 
 class FileInterface:

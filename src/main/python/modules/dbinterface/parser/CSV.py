@@ -1,11 +1,15 @@
 import csv
 
-from modules.RedisInterface.parser.Parser import Parser
-from modules.old.Tags import DATA_SEPARATOR, TARGET, SOURCE, ID
-from modules.RedisInterface.Exceptions import FileInterfaceParserException
+from modules.dbinterface.parser.parser import Parser
+from modules.dbinterface.constants import DATA_SEPARATOR, TARGET, SOURCE, ID, EDGE, VERTEX
+from modules.dbinterface.exceptons import FileInterfaceParserException
 
 
 class CSVParser(Parser):
+    """
+    #TODO: Complete documentation.
+    Parser class to read CSV files.
+    """
 
     def __init__(self):
 
@@ -87,7 +91,7 @@ class CSVParser(Parser):
 
                 return False
 
-            self._Response = {'vertices': [], 'edges': []}
+            self._Response = {VERTEX: [], EDGE: []}
             identifiers = set()
             csv_reader = csv.DictReader(file)
 
@@ -110,17 +114,17 @@ class CSVParser(Parser):
 
                 if source[ID] not in identifiers:
 
-                    self._Response['vertices'].append(source)
+                    self._Response[VERTEX].append(source)
                     identifiers.add(source[ID])
 
                 if target[ID] not in identifiers:
 
-                    self._Response['vertices'].append(target)
+                    self._Response[VERTEX].append(target)
                     identifiers.add(target[ID])
 
                 if edge[SOURCE] + DATA_SEPARATOR + edge[TARGET] not in identifiers:
 
-                    self._Response['edges'].append(edge)
+                    self._Response[EDGE].append(edge)
                     identifiers.add(edge[SOURCE] + DATA_SEPARATOR + edge[TARGET])
 
         elif self._Mode == 'parse_annotation':

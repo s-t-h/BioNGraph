@@ -1,15 +1,18 @@
 from modules.gui.container import DataBaseStatus
 from modules.gui.manager import GUIManager, ThreadManager
-from modules.RedisInterface.interface import DataBaseInterface, FileInterface
-from modules.RedisInterface.parser.GRAPHML import GRAPHMLParser
-from modules.RedisInterface.parser.JSON import JSONParser
-from modules.RedisInterface.parser.CSV import CSVParser
+from modules.dbinterface.interface import DataBaseInterface, FileInterface
+from modules.dbinterface.parser.GraphML import GRAPHMLParser
+from modules.dbinterface.parser.JSON import JSONParser
+from modules.dbinterface.parser.CSV import CSVParser
 from modules.gui.widgets import MasterWidget
 
 if __name__ == '__main__':
+    """
+    Starts BioNGraph
+    """
 
-    databaseInterface = DataBaseInterface()
     fileInterface = FileInterface()
+    databaseInterface = DataBaseInterface(fileInterface)
     threadManager = ThreadManager()
     databaseStatusContainer = DataBaseStatus(databaseInterface, fileInterface)
 

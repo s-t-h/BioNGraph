@@ -1,10 +1,14 @@
 from json import loads
 
-from modules.RedisInterface.parser.Parser import Parser
-from modules.RedisInterface.Exceptions import FileInterfaceParserException
+from modules.dbinterface.parser.parser import Parser
+from modules.dbinterface.exceptons import FileInterfaceParserException
 
 
 class JSONParser(Parser):
+    """
+    #TODO: Complete documentation.
+    Parser class to read annotations in JSON format.
+    """
 
     def __init__(self):
 

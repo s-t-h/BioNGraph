@@ -10,8 +10,9 @@ from webbrowser import open_new
 from zipfile import ZipFile
 from copy import deepcopy
 
-from modules.old.Tags import DATA_SEPARATOR, VERTEX, EDGE, ID, SOURCE, TARGET
-from modules.gui.constants import ICON_PATH, ICON_STD_SIZE, TITLE_, TITLE, ABOUT_MENU_LABEL, BITMAP_PATH
+from modules.dbinterface.constants import DATA_SEPARATOR, VERTEX, EDGE, ID, SOURCE, TARGET
+from modules.gui.constants import ICON_PATH, ICON_STD_SIZE, TITLE_, TITLE, ABOUT_MENU_LABEL, BITMAP_PATH, \
+    QUERY_STATUS, ACTIVE_QUERY, NEW_QUERY
 
 
 def load_icon(iconname, width=ICON_STD_SIZE, height=ICON_STD_SIZE) -> ImageTk.PhotoImage:
@@ -573,7 +574,6 @@ class DatabaseMenu(SuperMenu):
         self._Widgets['KeyEntry'] = Combobox(self._Widgets['KeyFrame'], width=23, justify=CENTER)
 
         for binder in [('<<ComboboxSelected>>', self.__set_key),
-                       ('<Return>', self.__add_key),
                        ('<FocusOut>', self.__reset_key)]:
 
             self._Widgets['KeyEntry'].bind(binder[0], binder[1])
@@ -601,27 +601,6 @@ class DatabaseMenu(SuperMenu):
             self.configure_state(DISABLED, 'Delete', 'Save', 'KeyEntry')
 
         self._Widgets['KeyEntry'].configure(values=list(self._DB.DBKeys))
-
-    def __add_key(self, event: Event):
-        """
-        Add a new key to the key-list.
-
-        Adds the current text entered in the Combobox as a new graph key.
-        The new key is not stored in the database until a CREATE query is sent.
-        Is invoked if the user enters a text to the Combobox and presses return.
-
-        Parameters
-        ----------
-        event : `Event`
-            The `Tkinter` `Event`. This parameter is needed due to the internal implementation of
-            the `Tkinter` `bind` method but not used for functionality.
-        """
-
-        self._DB.add_key(
-            self._Widgets['KeyEntry'].get().replace(' ', '')
-        )
-
-        self._Widgets['KeyEntry'].delete(0, END)
 
     def __delete_key(self):
         """
@@ -771,7 +750,7 @@ class StatusMenu(SuperMenu):
             self._Widgets['Thread'].configure(image='')
 
 
-# TODO: Create Doc!
+# TODO: Complete documentation!
 
 
 class ImportNotebook:
@@ -859,15 +838,9 @@ class SuperImport(SuperTab):
         :return:
         """
 
-        if not self.DB.DBActiveKey:
+        path = askopenfilename()
 
-            inform('Import', 'Please choose a Graph to work on first.')
-
-        else:
-
-            path = askopenfilename()
-
-            self.ThreadManager.stack_task(self.DB.FileInterface.read_header, (path, self.Container['In'], mode))
+        self.ThreadManager.stack_task(self.DB.FileInterface.read_header, (path, self.Container['In'], mode))
 
     def upload(self):
         """
@@ -875,29 +848,22 @@ class SuperImport(SuperTab):
         :return:
         """
 
-        if not self.DB.DBActiveKey:
+        excluded = self.Widgets['Table'].selection()
 
-            inform('Upload', 'Please select a Graph to work on first.')
+        for file in self.Widgets['Table'].get_children():
 
-        else:
+            if file not in excluded:
+                selection = [child.split(DATA_SEPARATOR)[1]
+                             for child in self.Widgets['Table'].get_children(file)
+                             if child not in excluded]
 
-            excluded = self.Widgets['Table'].selection()
+                file = self.Container['In'][file]
 
-            for file in self.Widgets['Table'].get_children():
+                file_type = file.Type
+                file_name = file.Name
+                file_path = file.Path
 
-                if file not in excluded:
-
-                    selection = [child.split(DATA_SEPARATOR)[1]
-                                 for child in self.Widgets['Table'].get_children(file)
-                                 if child not in excluded]
-
-                    file = self.Container['In'][file]
-
-                    file_type = file.Type
-                    file_name = file.Name
-                    file_path = file.Path
-
-                    self.Container['Out'].append((file_type, file_name, file_path, selection))
+                self.Container['Out'].append((file_type, file_name, file_path, selection))
 
     def pack(self, side=LEFT):
 
@@ -983,7 +949,7 @@ class ImportTab(SuperImport):
 
                 graph = self.DB.FileInterface.read_file(selection, (file_type, file_name, file_path), 'parse_graph')
 
-                self.DB.DBInterface.db_write(graph, self.DB.DBActiveKey, label_=file_name, type_=file_name)
+                self.DB.DBInterface.db_write(graph, file_name)
 
                 del self.Container['In'][file_name]
 
@@ -1041,7 +1007,11 @@ class AnnotationTab(SuperImport):
             target_property = self.Widgets['TargetEntry'].get()
             map_property = self.Widgets['MapEntry'].get()
 
-            if not target_property:
+            if not self.DB.DBStatus[QUERY_STATUS] == ACTIVE_QUERY:
+
+                inform('Annotation', 'Please run a query first.')
+
+            elif not target_property:
 
                 inform('Annotation', 'Please choose a target-property.')
 
@@ -1059,7 +1029,7 @@ class AnnotationTab(SuperImport):
                                                              (file_type, file_name, file_path),
                                                              'parse_annotation')
 
-                self.DB.DBInterface.db_annotate(target_property, map_property, file_name, annotation, self.DB.DBActiveKey)
+                self.DB.annotate_query(target_property, map_property, annotation)
 
                 del self.Container['In'][file_name]
 
@@ -1081,8 +1051,12 @@ class AnnotationTab(SuperImport):
 
         super().display_container()
 
-        self.Widgets['TargetEntry'].configure(values=[property for property in self.DB.DBProperties[0]
-                                                      if property != 'id'])
+        try:
+            target_properties = [property for property in self.DB.DBQuery[0][0] if property != 'id']
+            self.Widgets['TargetEntry'].configure(values=target_properties)
+
+        except TypeError:
+            pass
 
         possible_properties = []
 
@@ -1170,13 +1144,9 @@ class PropertiesTab(SuperImport):
                                              values=[property_root, property_type]
                                              )
 
-            except IndexError:
+            except (IndexError, TclError):
 
-                self.Widgets['Table'].insert('', 'end',
-                                             iid=p,
-                                             text=p,
-                                             values=['Undefined', 'Undefined']
-                                             )
+                pass
 
         displayed = self.Widgets['Table'].get_children()
         properties = self.DB.DBProperties
@@ -1205,8 +1175,9 @@ class PropertiesTab(SuperImport):
 
     def set_selection(self):
 
-        selection = [selected for selected in self.Widgets['Table'].selection()
-                     if self.Widgets['Table'].item(selected)['values'][1] == VERTEX]
+        selection = {self.Widgets['Table'].item(selected)['values'][0]: selected
+                     for selected in self.Widgets['Table'].selection()
+                     if self.Widgets['Table'].item(selected)['values'][1] == VERTEX}
 
         self.DB.UserSelection = selection
 
@@ -1340,12 +1311,10 @@ class MergeTab(SuperEdit):
 
         super().__init__(parent, 'Merge', dbcontainer, threadmanager)
 
-        self.target_attribute_exists = False
-
         self.Widgets['SrcKeyFrame'] = Labelframe(self.Widgets['Menu'], text='Source Graph ', labelanchor=W)
         self.Widgets['SrcKeyLabel'] = Label(self.Widgets['SrcKeyFrame'])
         self.Widgets['TgtKeyFrame'] = Labelframe(self.Widgets['Menu'], text='Target Graph ', labelanchor=W)
-        self.Widgets['TgtKeyEntry'] = Combobox(self.Widgets['TgtKeyFrame'], justify=CENTER)
+        self.Widgets['TgtKeyEntry'] = Entry(self.Widgets['TgtKeyFrame'], justify=CENTER)
         self.Widgets['SrcAttrFrame'] = Labelframe(self.Widgets['Menu'], text='Source Properties ', labelanchor=W)
         self.Widgets['SrcAttrLabel'] = Label(self.Widgets['SrcAttrFrame'])
         self.Widgets['TgtAttrFrame'] = Labelframe(self.Widgets['Menu'], text='Target Property ', labelanchor=W)
@@ -1353,39 +1322,41 @@ class MergeTab(SuperEdit):
 
     def run(self):
 
-        if not self.DB.DBActiveKey:
+        if not self.DB.UserSelection:
 
-            inform('Merge', 'Please select a Graph to work on first.')
-
-        elif not self.DB.UserSelection:
-
-            inform('Merge', 'Please select at least on attribute to merge.')
+            inform('Merge', 'Please select a set of merge properties.')
 
         else:
 
-            target_attribute = 'merge' + DATA_SEPARATOR \
-                               + str(self.Widgets['TgtAttrEntry'].get()).replace('_', '').replace(' ', '')
+            target_attribute = str(self.Widgets['TgtAttrEntry'].get()).replace('_', '').replace(' ', '')
+            target_graph = str(self.Widgets['TgtKeyEntry'].get()).replace('_', '').replace(' ', '')
 
-            target_graph = self.Widgets['TgtKeyEntry'].get()
+            graph_keys = deepcopy(self.DB.DBKeys)
+            graph_keys.add(self.DB.DBActiveKey)
 
             if not target_graph:
 
-                inform('Merge', 'Please enter a target-graph key.')
+                inform('Merge', 'Please enter a key for the merge graph.')
 
-            elif not target_attribute.lstrip('merge' + DATA_SEPARATOR):
+            elif not target_attribute:
 
-                inform('Merge', 'Please enter a target attribute.')
+                inform('Merge', 'Please enter a name for the merged properties.')
+
+            elif target_graph in graph_keys:
+
+                inform('Merge', 'The entered graph key already exists.')
 
             else:
 
-                source_attributes = list(deepcopy(self.DB.UserSelection))
+                source_attributes = deepcopy(list(self.DB.UserSelection.values()))
                 source_attributes.insert(0, target_attribute)
+
+                source_graphs = deepcopy(list(self.DB.UserSelection.keys()))
 
                 self.ThreadManager.stack_task(self.DB.DBInterface.db_merge,
                                               (source_attributes,
-                                               self.DB.DBActiveKey,
-                                               target_graph,
-                                               self.target_attribute_exists)
+                                               source_graphs,
+                                               target_graph)
                                               )
 
     def pack(self, px=5, py=5):
@@ -1413,32 +1384,8 @@ class MergeTab(SuperEdit):
 
         elif state == 'active':
 
-            merge_attribute = set(property.split(DATA_SEPARATOR)[1]
-                                  for property in self.DB.DBProperties[0]
-                                  if property.split(DATA_SEPARATOR)[0] == 'merge')
-
-            if merge_attribute:
-
-                self.target_attribute_exists = True
-                self.Widgets['TgtAttrEntry'].delete(0, END)
-                self.Widgets['TgtAttrEntry'].insert(END, merge_attribute.pop())
-                self.Widgets['TgtAttrEntry'].configure(state=DISABLED)
-
-            else:
-
-                self.target_attribute_exists = False
-                self.Widgets['TgtAttrEntry'].configure(state=NORMAL)
-
-            if self.DB.DBActiveKey:
-
-                self.Widgets['SrcKeyLabel'].configure(text=self.DB.DBActiveKey)
-
-            else:
-
-                self.Widgets['SrcKeyLabel'].configure(text='')
-
-            self.Widgets['SrcAttrLabel'].configure(text='\n'.join(self.DB.UserSelection))
-            self.Widgets['TgtKeyEntry'].configure(values=[entry for entry in self.DB.DBKeys])
+            self.Widgets['SrcKeyLabel'].configure(text='\n'.join(list(self.DB.UserSelection.keys())))
+            self.Widgets['SrcAttrLabel'].configure(text='\n'.join(list(self.DB.UserSelection.values())))
 
 
 class ExportNotebook:
@@ -1540,7 +1487,7 @@ class TableTab(SuperTab):
         :return:
         """
 
-        if self.DB.DBStatus['query'] == 'active':
+        if self.DB.DBStatus[QUERY_STATUS] == NEW_QUERY:
 
             def assemble_headings(table, headings):
 
@@ -1570,7 +1517,7 @@ class TableTab(SuperTab):
             vertex_table.delete(*vertex_table.get_children())
             edge_table.delete(*edge_table.get_children())
 
-            self.DB.DBStatus['query'] = ' '
+            self.DB.DBStatus[QUERY_STATUS] = ACTIVE_QUERY
 
             if vertices:
 

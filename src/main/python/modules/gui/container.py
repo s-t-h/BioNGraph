@@ -1,4 +1,4 @@
-from modules.gui.constants import CONNECTION_STATUS, DISCONNECTED, QUERY_STATUS, NO_QUERY, CONNECTED, ACTIVE
+from modules.gui.constants import CONNECTION_STATUS, DISCONNECTED, QUERY_STATUS, NO_QUERY, CONNECTED, NEW_QUERY, ACTIVE
 
 
 class DataBaseStatus:
@@ -40,9 +40,6 @@ class DataBaseStatus:
     -------
     shift_key(key)
         Sets `key` as `DBActiveKey`. If `DBActiveKey` is already set it will be added to `DBKeys`.
-
-    add_key(key)
-        Adds a new key to `DBKeys`.
 
     delete_key()
         Deletes `DBActiveKey`. Requests the database to delete the graph associated with `DBActiveKey`.
@@ -95,22 +92,6 @@ class DataBaseStatus:
 
         self.DBActiveKey = key
 
-    def add_key(self, key: str):
-        """
-        Adds a key to `DBKeys`.
-
-        Is invoked when users enter a new key in a visual representation of `DBKeys`.
-
-        Parameters
-        ----------
-        key : str
-            The key to add to the available keys.
-        """
-
-        assert type(key) is str, 'None string-types can not be used to store graph keys.'
-
-        self.DBKeys.add(key)
-
     def delete_key(self):
         """
         Delete active key.
@@ -146,7 +127,7 @@ class DataBaseStatus:
 
             self.DBKeys = set(self.DBInterface.db_get_keys()).union(self.DBKeys)
             self.DBKeys.discard(self.DBActiveKey)
-            self.DBProperties = self.DBInterface.db_get_attributes(self.DBActiveKey)
+            self.DBProperties = self.DBInterface.db_get_attributes()
 
         elif self.DBStatus[CONNECTION_STATUS] == ACTIVE and not client_status:
 
@@ -163,7 +144,45 @@ class DataBaseStatus:
         """
 
         self.DBQuery = self.DBInterface.db_query(query, self.DBActiveKey, to_graph=True)
-        self.DBStatus[QUERY_STATUS] = ACTIVE
+
+        self.DBStatus[QUERY_STATUS] = NEW_QUERY
+
+    def annotate_query(self, target_property, map_property, dictionaries):
+        """
+        Stores additional information to a query.
+
+        If a query is stored, for eaach vertex (dictionary) tries to update
+        the vertex by matching the respective target_property value against
+        the map_property value.
+
+        Parameters
+        ----------
+        target_property : str
+            Property of the vertices of the currently stored query.
+
+        map_property : str
+            Property of the annotation dictionary to match against the target property.
+
+        dictionaries : list
+            A list of dictionaries. Each dictionary should contain map_property key.
+        """
+
+        ''' Re-structures each dictionaries to be accessible by the stored map_property key.
+        '''
+        dictionaries_mapping = {dictionary.pop(map_property): dictionary for dictionary in dictionaries}
+        null_mapping = {key: ''
+                        for key in list(dictionaries_mapping.values())[0].keys()}
+
+        for vertex in self.DBQuery[0]:
+
+            try:
+                vertex.update(dictionaries_mapping.pop(vertex[target_property]))
+
+            except KeyError:
+
+                vertex.update(null_mapping)
+
+        self.DBStatus[QUERY_STATUS] = NEW_QUERY
 
 
 class OpenFile:

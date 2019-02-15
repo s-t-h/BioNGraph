@@ -1,11 +1,15 @@
 from xml.sax import make_parser, handler
 
-from modules.RedisInterface.parser.Parser import Parser
-from modules.old.Tags import EDGE, DATA_SEPARATOR, KEY, NODE, ID, SOURCE, TARGET, DATA
-from modules.RedisInterface.Exceptions import FileInterfaceParserException
+from modules.dbinterface.parser.parser import Parser
+from modules.dbinterface.constants import EDGE, DATA_SEPARATOR, KEY, NODE, ID, SOURCE, TARGET, DATA, VERTEX
+from modules.dbinterface.exceptons import FileInterfaceParserException
 
 
 class GRAPHMLParser(Parser):
+    """
+    #TODO: Complete documentation.
+    Parser class to read GraphML files.
+    """
 
     def __init__(self):
 
@@ -95,7 +99,7 @@ class _Handler(handler.ContentHandler):
     # Methods for parse mode
 
     def start_document_parse(self):
-        self.RESPONSE = {'vertices': [], 'edges': []}
+        self.RESPONSE = {VERTEX: [], EDGE: []}
 
     def start_element_parse(self, name, attrs):
 
@@ -119,12 +123,12 @@ class _Handler(handler.ContentHandler):
 
         if name == NODE:
             properties = self.PROPERTIES.copy()
-            self.RESPONSE['vertices'].append(properties)
+            self.RESPONSE[VERTEX].append(properties)
             self.PROPERTIES.clear()
 
         elif name == EDGE:
             properties = self.PROPERTIES.copy()
-            self.RESPONSE['edges'].append(properties)
+            self.RESPONSE[EDGE].append(properties)
             self.PROPERTIES.clear()
 
         elif name == DATA:

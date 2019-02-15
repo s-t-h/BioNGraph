@@ -3,7 +3,7 @@ from tkinter.ttk import *
 from time import sleep
 from threading import Thread
 from queue import Queue, Empty
-from os.path import realpath
+from os.path import abspath
 from traceback import format_exc
 
 from modules.gui.widgets import load_icon
@@ -44,12 +44,11 @@ class GUIManager:
 
         self.__repository_icon = load_icon(REPOSITORY_TAG, width=ICON_SIZE_MENU, height=ICON_SIZE_MENU)
         self.__userguide_icon = load_icon(USER_GUIDE_TAG, width=ICON_SIZE_MENU, height=ICON_SIZE_MENU)
-        self.__userguide_url = BROWSER_FILE_TAG + realpath(USER_GUIDE_PATH)
 
         self.Master.add_about_menu_option_url(REPOSITORY_URL,
                                               label=REPOSITORY_LABEL,
                                               image=self.__repository_icon)
-        self.Master.add_about_menu_option_url(BROWSER_FILE_TAG + realpath(USER_GUIDE_PATH),
+        self.Master.add_about_menu_option_url(BROWSER_FILE_TAG + abspath(USER_GUIDE_PATH),
                                               label=USER_GUIDE_LABEL,
                                               image=self.__userguide_icon)
 

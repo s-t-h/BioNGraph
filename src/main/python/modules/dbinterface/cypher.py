@@ -1,4 +1,4 @@
-from modules.old.Tags import CREATE, VERTEX, SOURCE, TARGET, ID, EDGE, MATCH, WHERE, AND, NULL, NOT, IS, \
+from modules.old.Tags import CREATE, VERTEX, SOURCE, TARGET, ID, EDGE, MATCH, WHERE, IS, \
     DISTINCT, OR, DELETE, SET, DATA_SEPARATOR, RETURN
 
 
@@ -34,24 +34,6 @@ def create_vertex(*args, label_=VERTEX):
         )
     )
 
-'''
-def get_vertex(*args):
-
-    return \
-        MATCH + '(v)' \
-        + WHERE + OR.join(['v.id' + IS + _wrap(id) for id in args]) \
-        + RETURN + 'v'
-'''
-
-'''
-def get_objects_to_merge(*args):
-
-    return \
-        MATCH + '()-[ie]->(v)-[oe]->()' \
-        + WHERE + OR.join(['v.id' + IS + _wrap(id) for id in args]) \
-        + RETURN + 'v, ie, oe'
-'''
-
 
 def delete_vertex(*args):
 
@@ -63,29 +45,6 @@ def delete_vertex(*args):
             args
         )
     ) + ')' + DELETE + 'v'
-
-
-'''
-def get_vertex_equal(*args):
-
-    nmbr = len(args)
-
-    command = MATCH + ' ' + ', '.join(['(' + 'vertex' + str(index) + ')'
-                                       for index in range(nmbr)])
-
-    command += WHERE + 'vertex0.' + args[0] + NOT + NULL
-
-    command += ''.join([AND + 'vertex0.' + args[0]
-                        + ' = '
-                        + 'vertex' + str(index) + '.'
-                        + args[index]
-                        for index in range(1, nmbr)])
-
-    command += RETURN + ', '.join(['vertex' + str(index) + '.id'
-                                   for index in range(0, nmbr)])
-
-    return command
-'''
 
 
 def get_vertex_limited():
@@ -105,26 +64,15 @@ def create_edge(*args, type_=EDGE):
     )
 
 
-'''
-def get_edge(*args):
-
-    return MATCH + '()-[edge]->()' \
-           + WHERE + OR.join(['edge.target' + IS + _wrap(id) for id in args]) \
-           + RETURN + 'edge'
-'''
-
-
 def get_edge_limited():
 
     return MATCH + '()-[edge]->()' + DISTINCT + 'edge LIMIT 1'
 
 
-def get_merge_entities(*args):
+def get_merge_entities():
 
     return \
         MATCH + '(v)-[e]->(w)' + \
-        WHERE + OR.join(['v.' + arg + NOT + NULL for arg in args]) + \
-        OR + OR.join(['w.' + arg + NOT + NULL for arg in args]) + \
         DISTINCT + 'v, w, e'
 
 

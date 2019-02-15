@@ -118,10 +118,10 @@ class CSVParser(Parser):
                     self._Response['vertices'].append(target)
                     identifiers.add(target[ID])
 
-                if edge[SOURCE] + edge[TARGET] not in identifiers:
+                if edge[SOURCE] + DATA_SEPARATOR + edge[TARGET] not in identifiers:
 
                     self._Response['edges'].append(edge)
-                    identifiers.add(edge[SOURCE] + edge[TARGET])
+                    identifiers.add(edge[SOURCE] + DATA_SEPARATOR + edge[TARGET])
 
         elif self._Mode == 'parse_annotation':
 

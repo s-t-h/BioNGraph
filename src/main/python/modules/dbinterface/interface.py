@@ -1,6 +1,6 @@
 from itertools import chain
 from os.path import basename, abspath, join, dirname
-from os import remove
+from os import remove, mkdir
 from subprocess import Popen, PIPE
 from tkinter import messagebox
 from csv import DictWriter
@@ -494,8 +494,8 @@ class DataBaseInterface:
         self.__FileInterface.write_bulk(graph, graph_key)
 
         exec_redis_bulk = PYTHON_EXEC + join(abspath(dirname(__file__)), REDIS_BULK_DIRECTORY)
-        nodes = join(abspath(dirname(__file__)), WORK_DIRECTORY) + graph_key + '_nodes.csv'
-        edges = join(abspath(dirname(__file__)), WORK_DIRECTORY) + graph_key + '_edges.csv'
+        nodes = WORK_DIRECTORY + graph_key + '_nodes.csv'
+        edges = WORK_DIRECTORY + graph_key + '_edges.csv'
 
         command = \
             ' '.join([exec_redis_bulk, graph_key]) + \
@@ -859,16 +859,20 @@ class FileInterface:
         vertex_properties = [key for key in graph[VERTEX][0].keys() if key != ID]
         edge_properties = list(graph[EDGE][0].keys())
 
-        path_ = join(abspath(dirname(__file__)), WORK_DIRECTORY)
+        try:
+            # Create directory to write csv files if not present.
+            mkdir(WORK_DIRECTORY)
+        except FileExistsError:
+            pass
 
-        with open(path_ + graph_key + '_nodes.csv', 'w+', newline='') as nodes:
+        with open(WORK_DIRECTORY + graph_key + '_nodes.csv', 'w+', newline='') as nodes:
             fieldnames = [ID] + vertex_properties
             writer = DictWriter(nodes, fieldnames=fieldnames)
 
             writer.writeheader()
             writer.writerows(graph[VERTEX])
 
-        with open(path_ + graph_key + '_edges.csv', 'w+', newline='') as edges:
+        with open(WORK_DIRECTORY + graph_key + '_edges.csv', 'w+', newline='') as edges:
             fieldnames = [SOURCE, TARGET] + edge_properties
             writer = DictWriter(edges, fieldnames=fieldnames)
 
